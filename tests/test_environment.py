@@ -1,0 +1,46 @@
+from support_queue_env.client import SupportQueueEnvClient
+from support_queue_env.models import CustomerSupportAction, ResolutionPayload
+
+
+def test_easy_task_can_score_full_credit():
+    client = SupportQueueEnvClient()
+    client.reset(task_id="delayed_shipping_refund")
+    client.step(CustomerSupportAction(action_type="search_policy", argument="shipping delay policy"))
+    client.step(CustomerSupportAction(action_type="set_priority", argument="normal"))
+    client.step(CustomerSupportAction(action_type="route_ticket", argument="logistics"))
+    client.step(CustomerSupportAction(action_type="add_tag", argument="delayed_shipment"))
+    client.step(
+        CustomerSupportAction(
+            action_type="draft_reply",
+            message="Sorry about the delay. I refunded 8.99 for the shipping refund and will follow up on the delay.",
+        )
+    )
+    result = client.step(
+        CustomerSupportAction(
+            action_type="submit_resolution",
+            resolution=ResolutionPayload(
+                resolution_code="refund_shipping_fee",
+                shipping_refund=8.99,
+                message="Sorry about the delay. I refunded 8.99 for the shipping refund and will follow up on the delay.",
+            ),
+        )
+    )
+    assert result.done is True
+    assert result.info["evaluation"]["final_score"] >= 0.99
+
+
+def test_wrong_submission_is_partial_not_binary():
+    client = SupportQueueEnvClient()
+    client.reset(task_id="defective_return_window")
+    client.step(CustomerSupportAction(action_type="search_policy", argument="defective return policy"))
+    result = client.step(
+        CustomerSupportAction(
+            action_type="submit_resolution",
+            resolution=ResolutionPayload(
+                resolution_code="escalate_only",
+                message="I am escalating this.",
+            ),
+        )
+    )
+    assert result.done is True
+    assert 0.0 < result.info["evaluation"]["final_score"] < 1.0

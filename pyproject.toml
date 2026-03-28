@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "support-queue-openenv"
+version = "0.1.0"
+description = "A real-world OpenEnv environment for customer support triage and resolution."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "openenv-core[core]>=0.2.2",
+  "openai>=1.40.0",
+  "pydantic>=2.8.0",
+  "pyyaml>=6.0.2",
+  "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27.0",
+  "pytest>=8.2.0",
+]
+openenv = [
+  "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git",
+]
+
+[tool.setuptools.packages.find]
+include = ["support_queue_env*"]
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.setuptools.package-data]
+support_queue_env = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
