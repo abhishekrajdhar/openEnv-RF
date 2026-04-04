@@ -26,6 +26,17 @@ TASK_ORDER = [
     "defective_return_window",
     "subscription_cancellation_dispute",
 ]
+TASK_ALIASES = {
+    "1": "delayed_shipping_refund",
+    "01": "delayed_shipping_refund",
+    "easy": "delayed_shipping_refund",
+    "2": "defective_return_window",
+    "02": "defective_return_window",
+    "medium": "defective_return_window",
+    "3": "subscription_cancellation_dispute",
+    "03": "subscription_cancellation_dispute",
+    "hard": "subscription_cancellation_dispute",
+}
 
 
 class SupportQueueEnvironment(Environment):
@@ -42,6 +53,9 @@ class SupportQueueEnvironment(Environment):
         if task_id is None:
             task_id = TASK_ORDER[self._task_index % len(TASK_ORDER)]
             self._task_index += 1
+        else:
+            normalized = task_id.strip().lower()
+            task_id = TASK_ALIASES.get(normalized, normalized)
         if task_id not in self._tasks:
             raise ValueError(f"Unknown task_id: {task_id}")
 

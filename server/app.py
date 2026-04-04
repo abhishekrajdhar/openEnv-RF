@@ -18,4 +18,7 @@ if __name__ == '__main__':
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    main(host=args.host, port=args.port)
+    if args.host == "0.0.0.0" and args.port == 8000:
+        main()
+    else:
+        main(host=args.host, port=args.port)

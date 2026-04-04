@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from ..models import CustomerSupportAction
@@ -24,16 +24,27 @@ def health() -> dict[str, str]:
 
 @app.post("/reset")
 def reset(payload: ResetRequest | None = None) -> dict:
-    result = env.reset(task_id=payload.task_id if payload else None)
+    try:
+        result = env.reset(task_id=payload.task_id if payload else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result.model_dump(mode="json")
 
 
 @app.post("/step")
 def step(action: CustomerSupportAction) -> dict:
-    result = env.step(action)
+    try:
+        result = env.step(action)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result.model_dump(mode="json")
 
 
 @app.get("/state")
 def state() -> dict:
-    return env.state().model_dump(mode="json")
+    try:
+        return env.state().model_dump(mode="json")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
