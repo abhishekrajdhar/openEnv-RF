@@ -14,6 +14,7 @@ dependencies = [
   "openai>=1.40.0",
   "pydantic>=2.8.0",
   "pyyaml>=6.0.2",
+  "python-dotenv>=1.0.1",
   "uvicorn>=0.30.0",
 ]
 
@@ -27,7 +28,7 @@ openenv = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["support_queue_env*"]
+include = ["support_queue_env*", "server*"]
 
 [project.scripts]
 server = "server.app:main"

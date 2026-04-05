@@ -7,12 +7,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml README.md openenv.yaml /app/
+COPY server /app/server
 COPY support_queue_env /app/support_queue_env
 COPY scripts /app/scripts
+COPY inference.py /app/inference.py
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
 EXPOSE 7860
 
-CMD ["uvicorn", "support_queue_env.server.app:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python", "-m", "server.app", "--host", "0.0.0.0", "--port", "7860"]

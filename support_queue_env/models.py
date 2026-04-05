@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal
 
 from pydantic import Field
 
@@ -61,7 +61,7 @@ class TaskSummary(OpenEnvModel):
 
 
 class CustomerSupportReward(OpenEnvModel):
-    reward_delta: float
+    reward_delta: float = Field(ge=0.0, le=1.0)
     cumulative_reward: float
     progress_score: float = Field(ge=0.0, le=1.0)
     partial_signals: Dict[str, float] = Field(default_factory=dict)
@@ -102,6 +102,7 @@ class EvaluationSnapshot(OpenEnvModel):
     reply_coverage: float = 0.0
     routing_correct: bool = False
     priority_correct: bool = False
+    hallucination_penalty: float = 0.0
     final_score: float = 0.0
 
 

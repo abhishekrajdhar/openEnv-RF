@@ -1,10 +1,17 @@
 name: support_queue_env
 version: "0.1.0"
 description: "Customer support triage and resolution environment for OpenEnv."
-entrypoint: support_queue_env.server.app:app
+entrypoint: server.app:app
 action: CustomerSupportAction
 observation: CustomerSupportObservation
 state: CustomerSupportState
+metadata:
+  domain: customer-support
+  difficulty_levels:
+    - easy
+    - medium
+    - hard
+  max_steps: 12
 tags:
   - openenv
   - customer-support

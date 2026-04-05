@@ -27,6 +27,7 @@ def test_easy_task_can_score_full_credit():
     )
     assert result.done is True
     assert result.info["evaluation"]["final_score"] >= 0.99
+    assert 0.0 <= result.reward <= 1.0
 
 
 def test_wrong_submission_is_partial_not_binary():
@@ -44,3 +45,12 @@ def test_wrong_submission_is_partial_not_binary():
     )
     assert result.done is True
     assert 0.0 < result.info["evaluation"]["final_score"] < 1.0
+
+
+def test_task_alias_and_invalid_action_penalty_are_supported():
+    client = SupportQueueEnvClient()
+    observation = client.reset(task_id="01")
+    assert observation.task.task_id == "delayed_shipping_refund"
+    result = client.step(CustomerSupportAction(action_type="route_ticket", argument="unknown_team"))
+    assert result.reward == 0.0
+    assert result.observation.reward_details.penalties["invalid_action"] < 0.0

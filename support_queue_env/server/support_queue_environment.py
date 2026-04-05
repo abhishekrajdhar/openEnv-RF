@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 from copy import deepcopy
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from ..compat import Environment, StepResult
 from ..graders import compute_progress, grade_submission
@@ -49,7 +49,7 @@ class SupportQueueEnvironment(Environment):
         self._state: CustomerSupportState | None = None
         self._seen_action_signatures: set[str] = set()
 
-    def reset(self, task_id: str | None = None) -> StepResult[CustomerSupportObservation]:
+    def reset(self, task_id: str | None = None) -> CustomerSupportObservation:
         if task_id is None:
             task_id = TASK_ORDER[self._task_index % len(TASK_ORDER)]
             self._task_index += 1
@@ -78,12 +78,7 @@ class SupportQueueEnvironment(Environment):
             rationale="Environment reset.",
             partial_signals={"initial_state": self._state.progress_score},
         )
-        return StepResult(
-            observation=self._build_observation("Ticket ready for review.", reward),
-            reward=0.0,
-            done=False,
-            info={"task_id": task_id},
-        )
+        return self._build_observation("Ticket ready for review.", reward)
 
     def step(self, action: CustomerSupportAction) -> StepResult[CustomerSupportObservation]:
         state = self._require_state()
@@ -107,41 +102,49 @@ class SupportQueueEnvironment(Environment):
         penalties: Dict[str, float] = {}
         partial_signals: Dict[str, float] = {}
         status = ""
+        valid_action = True
 
         repeated = self._record_action_signature(action)
         if repeated:
-            penalties["repeat_action"] = -0.03
+            penalties["repeat_action"] = -0.04
 
         if action.action_type == "search_policy":
-            status = self._search_artifact(action.argument, expected_types={"policy"})
+            status, valid_action = self._search_artifact(action.argument, expected_types={"policy"})
         elif action.action_type == "open_order":
-            status = self._search_artifact(action.argument, expected_types={"order"})
+            status, valid_action = self._search_artifact(action.argument, expected_types={"order"})
         elif action.action_type == "open_account":
-            status = self._search_artifact(action.argument, expected_types={"account"})
+            status, valid_action = self._search_artifact(action.argument, expected_types={"account"})
         elif action.action_type == "open_log":
-            status = self._search_artifact(action.argument, expected_types={"log"})
+            status, valid_action = self._search_artifact(action.argument, expected_types={"log"})
         elif action.action_type == "set_priority":
-            status = self._set_priority(action.argument)
+            status, valid_action = self._set_priority(action.argument)
         elif action.action_type == "route_ticket":
-            status = self._set_route(action.argument)
+            status, valid_action = self._set_route(action.argument)
         elif action.action_type == "add_tag":
-            status = self._add_tag(action.argument)
+            status, valid_action = self._add_tag(action.argument)
         elif action.action_type == "draft_reply":
             state.draft_reply = (action.message or "").strip()
             status = "Saved draft reply."
         elif action.action_type == "submit_resolution":
-            status, partial_signals = self._submit_resolution(action.resolution, task)
+            status, partial_signals, valid_action = self._submit_resolution(action.resolution, task)
         else:
             raise ValueError(f"Unsupported action type: {action.action_type}")
 
+        if not valid_action:
+            penalties["invalid_action"] = penalties.get("invalid_action", 0.0) - 0.08
+            state.hidden_context["invalid_action_count"] = int(
+                state.hidden_context.get("invalid_action_count", 0)
+            ) + 1
+
         self._refresh_evaluation()
         delta = round(state.progress_score - last_progress, 4)
-        reward_delta = delta + sum(partial_signals.values()) + sum(penalties.values())
+        raw_reward_delta = delta + sum(partial_signals.values()) + sum(penalties.values())
+        reward_delta = max(0.0, min(round(raw_reward_delta, 4), 1.0))
 
         if state.step_count >= state.max_steps and not state.done:
             state.done = True
-            penalties["max_steps"] = penalties.get("max_steps", 0.0) - 0.10
-            reward_delta += penalties["max_steps"]
+            penalties["max_steps"] = penalties.get("max_steps", 0.0) - 0.12
+            reward_delta = max(0.0, round(reward_delta + penalties["max_steps"], 4))
             status = f"{status} Step budget exhausted."
 
         reward = self._reward_model(
@@ -219,7 +222,7 @@ class SupportQueueEnvironment(Environment):
         self._seen_action_signatures.add(signature)
         return already_seen
 
-    def _search_artifact(self, query: str | None, expected_types: set[str]) -> str:
+    def _search_artifact(self, query: str | None, expected_types: set[str]) -> Tuple[str, bool]:
         task = self._require_task()
         state = self._require_state()
         normalized = (query or "").strip().lower()
@@ -234,39 +237,43 @@ class SupportQueueEnvironment(Environment):
                 None,
             )
         if artifact is None or artifact.artifact_type not in expected_types:
-            return f"No matching {'/'.join(sorted(expected_types))} found for query '{query}'."
+            return f"No matching {'/'.join(sorted(expected_types))} found for query '{query}'.", False
         if artifact.artifact_id not in {item.artifact_id for item in state.visible_artifacts}:
             state.visible_artifacts.append(deepcopy(artifact))
-        return f"Opened {artifact.artifact_type} {artifact.artifact_id}: {artifact.title}."
+        return f"Opened {artifact.artifact_type} {artifact.artifact_id}: {artifact.title}.", True
 
-    def _set_priority(self, priority: str | None) -> str:
+    def _set_priority(self, priority: str | None) -> Tuple[str, bool]:
         state = self._require_state()
         allowed = {"low", "normal", "high", "urgent"}
         if priority not in allowed:
-            return f"Priority '{priority}' is invalid."
+            return f"Priority '{priority}' is invalid.", False
         state.priority = priority  # type: ignore[assignment]
-        return f"Priority set to {priority}."
+        return f"Priority set to {priority}.", True
 
-    def _set_route(self, route: str | None) -> str:
+    def _set_route(self, route: str | None) -> Tuple[str, bool]:
         state = self._require_state()
-        state.route = (route or "").strip().lower() or None
-        return f"Route set to {state.route}."
+        normalized = (route or "").strip().lower()
+        allowed = {"logistics", "returns", "billing"}
+        if normalized not in allowed:
+            return f"Route '{route}' is invalid.", False
+        state.route = normalized
+        return f"Route set to {state.route}.", True
 
-    def _add_tag(self, tag: str | None) -> str:
+    def _add_tag(self, tag: str | None) -> Tuple[str, bool]:
         state = self._require_state()
         normalized = (tag or "").strip().lower()
         if not normalized:
-            return "Tag cannot be empty."
+            return "Tag cannot be empty.", False
         if normalized not in state.tags:
             state.tags.append(normalized)
-        return f"Tag '{normalized}' added."
+        return f"Tag '{normalized}' added.", True
 
     def _submit_resolution(
         self, resolution: ResolutionPayload | None, task: SupportTask
-    ) -> tuple[str, Dict[str, float]]:
+    ) -> tuple[str, Dict[str, float], bool]:
         state = self._require_state()
         if resolution is None:
-            return "Resolution payload is required.", {"invalid_submission": -0.08}
+            return "Resolution payload is required.", {}, False
         if resolution.message and not state.draft_reply:
             state.draft_reply = resolution.message
         state.last_resolution = resolution
@@ -276,7 +283,7 @@ class SupportQueueEnvironment(Environment):
         state.evaluation = compute_progress(task, state)
         signals = {f"final_{key}": round((value - 0.5) * 0.02, 4) for key, value in components.items()}
         signals["final_score_bonus"] = round(final_score * 0.3, 4)
-        return f"Resolution submitted with grader score {final_score:.2f}.", signals
+        return f"Resolution submitted with grader score {final_score:.2f}.", signals, True
 
     def _refresh_evaluation(self) -> None:
         task = self._require_task()

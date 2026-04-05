@@ -27,6 +27,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     tag_hits = sum(1 for tag in expected.required_tags if tag in state.tags)
     tag_coverage = tag_hits / len(expected.required_tags) if expected.required_tags else 1.0
     reply_coverage = _contains_all_terms(state.draft_reply, expected.reply_must_include)
+    hallucination_penalty = min(float(state.hidden_context.get("invalid_action_count", 0)) * 0.02, 0.10)
 
     final_score = 0.0
     final_score += 0.20 * (len(discovered) / len(expected.required_artifacts))
@@ -41,6 +42,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         final_score += 0.04 if abs(resolution.refund_amount - expected.refund_amount) < 0.01 else 0.0
         final_score += 0.02 if abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else 0.0
         final_score += 0.02 if abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else 0.0
+    final_score = max(0.0, final_score - hallucination_penalty)
 
     return EvaluationSnapshot(
         discovered_required_artifacts=discovered,
@@ -48,6 +50,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         reply_coverage=round(reply_coverage, 4),
         routing_correct=state.route == expected.route,
         priority_correct=state.priority == expected.priority,
+        hallucination_penalty=round(hallucination_penalty, 4),
         final_score=round(min(final_score, 1.0), 4),
     )
 

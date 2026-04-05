@@ -25,7 +25,7 @@ Most agent environments are either games or generic tool-use sandboxes. This one
 
 The environment implements the standard `reset()` / `step()` / `state()` API.
 
-- `reset(task_id: str | None = None) -> StepResult[CustomerSupportObservation]`
+- `reset(task_id: str | None = None) -> CustomerSupportObservation`
 - `step(action: CustomerSupportAction) -> StepResult[CustomerSupportObservation]`
 - `state() -> CustomerSupportState`
 
@@ -93,9 +93,9 @@ Reward is shaped throughout the trajectory:
 - positive signal for discovering required evidence
 - positive signal for correct route, priority, tags, and reply content
 - final score boost on successful `submit_resolution`
-- penalties for repeated actions, invalid actions, post-terminal actions, and running out of steps
+- penalties for repeated actions, invalid actions, out-of-order API use, hallucinated lookups, post-terminal actions, and running out of steps
 
-The deterministic grader produces a final score in `[0.0, 1.0]`.
+The deterministic grader produces a final score in `[0.0, 1.0]`. Per-step scalar rewards are clipped into `[0.0, 1.0]` while still preserving penalty information inside `reward_details`.
 
 ## Project Layout
 
@@ -112,6 +112,10 @@ support_queue_env/
     support_queue_environment.py
 scripts/
   run_baseline.py
+inference.py
+server/
+  app.py
+  Dockerfile
 tests/
   test_environment.py
 openenv.yaml
@@ -162,6 +166,12 @@ Health check:
 curl http://localhost:7860/health
 ```
 
+Runtime metadata:
+
+```bash
+curl http://localhost:7860/metadata
+```
+
 ## Hugging Face Spaces
 
 This repo is prepared for a Docker Space. The front matter at the top of this `README.md` sets `sdk: docker` and includes the `openenv` tag. Pushing the repository to a new HF Space is enough for deployment once the Space is created.
@@ -172,17 +182,30 @@ Recommended Space settings:
 - Port: `7860`
 - Tag: `openenv`
 
-## Baseline Script
+## Inference Script
 
-The baseline runner uses the OpenAI API client and reads credentials from `OPENAI_API_KEY`.
+The required inference runner is [inference.py](/Users/abhishekrajdhardubey/Documents/Projects/scaler/inference.py). It uses the OpenAI client and reads:
+
+- `API_BASE_URL`
+- `MODEL_NAME`
+- `OPENAI_API_KEY`
+
+It logs exactly:
+
+```text
+[START] Task=<task_id>
+[STEP] reward=<float> done=<bool>
+[END] total_reward=<float>
+```
 
 ```bash
 export OPENAI_API_KEY=...
-export OPENAI_MODEL=gpt-4.1-mini
-python scripts/run_baseline.py
+export MODEL_NAME=gpt-4.1-mini
+export API_BASE_URL=https://api.openai.com/v1
+python inference.py
 ```
 
-The script runs the model across all three tasks and prints per-task scores plus the average final score in JSON.
+The script runs all three tasks in a fixed order with deterministic prompts, `temperature=0`, and `seed=0`.
 
 ## Reproducibility
 
@@ -190,9 +213,9 @@ Reproducibility comes from:
 
 - deterministic task data
 - deterministic graders
-- fixed task order in the baseline script
+- fixed task order in the inference script
 - `temperature=0` for model calls
 
 ## Baseline Scores
 
-The baseline script is included and deterministic, but I did not execute it in this workspace because no `OPENAI_API_KEY` was available during implementation. Once credentials are present, the script will emit reproducible scores for all three tasks.
+The inference script is included and deterministic, but I did not execute it in this workspace because no valid `OPENAI_API_KEY` was available during implementation. Once credentials are present, `python inference.py` will emit reproducible per-task reward traces.

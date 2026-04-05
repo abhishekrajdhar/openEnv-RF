@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Dict, Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -49,7 +49,7 @@ class StepResult(OpenEnvModel, Generic[ObservationT]):
 class Environment(OpenEnvEnvironment):
     """Fallback Environment base with the standard API."""
 
-    def reset(self, *args: Any, **kwargs: Any) -> StepResult[Any]:
+    def reset(self, *args: Any, **kwargs: Any) -> Observation:
         raise NotImplementedError
 
     def step(self, action: Action) -> StepResult[Any]:
@@ -65,7 +65,7 @@ class LocalEnvClient:
     def __init__(self, env: Environment):
         self._env = env
 
-    def reset(self, **kwargs: Any) -> StepResult[Any]:
+    def reset(self, **kwargs: Any) -> Observation:
         return self._env.reset(**kwargs)
 
     def step(self, action: Action) -> StepResult[Any]:
