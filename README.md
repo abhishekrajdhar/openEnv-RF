@@ -1,5 +1,5 @@
 ---
-title: Support Queue OpenEnv
+title: OpenEnv-RL
 sdk: docker
 app_port: 7860
 tags:
@@ -8,9 +8,9 @@ tags:
   - reinforcement-learning
 ---
 
-# Support Queue OpenEnv
+# OpenEnv-RL
 
-Support Queue OpenEnv is a production-style environment for training and evaluating agents on customer support triage and resolution. Instead of solving a toy game, the agent operates like an internal support operations assistant for an e-commerce company: it reviews the customer issue, retrieves relevant artifacts, applies policy, sets routing and priority, drafts a customer reply, and submits a final resolution.
+OpenEnv-RL is a production-style environment for training and evaluating agents on customer support triage and resolution. Instead of solving a toy game, the agent operates like an internal support operations assistant for an e-commerce company: it reviews the customer issue, retrieves relevant artifacts, applies policy, sets routing and priority, drafts a customer reply, and submits a final resolution.
 
 This environment is designed for OpenEnv-style agent evaluation, reproducible offline benchmarking, and containerized deployment on Hugging Face Spaces.
 
