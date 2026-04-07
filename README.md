@@ -10,37 +10,67 @@ tags:
 
 # Support Queue OpenEnv
 
-`support_queue_openenv` is a real-world agent environment for customer support triage and resolution in an e-commerce operations setting. The agent must inspect records, look up policy, route the case, tag it correctly, draft a customer-facing response, and submit a final resolution. This is the kind of multi-step workflow support teams actually do every day, which makes it useful for both RL training and evals.
+Support Queue OpenEnv is a production-style environment for training and evaluating agents on customer support triage and resolution. Instead of solving a toy game, the agent operates like an internal support operations assistant for an e-commerce company: it reviews the customer issue, retrieves relevant artifacts, applies policy, sets routing and priority, drafts a customer reply, and submits a final resolution.
 
-## Why this environment
+This environment is designed for OpenEnv-style agent evaluation, reproducible offline benchmarking, and containerized deployment on Hugging Face Spaces.
 
-Most agent environments are either games or generic tool-use sandboxes. This one models a practical back-office workflow with measurable correctness, partial progress, and realistic failure modes:
+## Overview
 
-- Agents need to gather evidence before acting.
-- Small mistakes matter: wrong route, wrong priority, wrong refund amount, missing VIP handling.
-- Reward is shaped across the trajectory rather than only at the terminal step.
-- Grading is deterministic and reproducible.
+The environment simulates a realistic support workflow with deterministic data and deterministic grading. Each episode is a structured ticket-handling task where the agent must:
 
-## Environment API
+- inspect records and policies before acting
+- route the case to the correct team
+- assign the correct operational priority
+- add relevant structured tags
+- write an appropriate customer-facing response
+- submit a final resolution with the correct financial outcome
 
-The environment implements the standard `reset()` / `step()` / `state()` API.
+This setup creates a useful benchmark for practical agent skills such as evidence gathering, policy compliance, structured decision-making, and long-horizon task completion.
+
+## Why This Environment Matters
+
+Many agent benchmarks over-index on games, synthetic tool use, or loosely specified tasks. This project targets a real operational domain with clear utility:
+
+- customer support is a common, high-value enterprise workflow
+- correctness depends on both retrieval and decision quality
+- errors are meaningful: wrong route, wrong refund, missed VIP handling, or unsupported escalation
+- partial progress can be measured throughout the trajectory, not only at the end
+
+The environment is therefore useful both for reinforcement learning research and for agent evaluation in real-world automation settings.
+
+## OpenEnv API
+
+The environment implements the standard API:
 
 - `reset(task_id: str | None = None) -> CustomerSupportObservation`
 - `step(action: CustomerSupportAction) -> StepResult[CustomerSupportObservation]`
 - `state() -> CustomerSupportState`
 
+`reset()` initializes a clean episode and returns the initial observation.
+
 `step()` returns:
 
-- `observation`: typed `CustomerSupportObservation`
-- `reward`: float trajectory delta
-- `done`: episode completion flag
-- `info`: structured diagnostics, including grader state
+- `observation`: the next typed observation
+- `reward`: scalar reward for the latest transition
+- `done`: whether the episode has terminated
+- `info`: deterministic evaluation details and diagnostics
 
-The project also defines a typed `CustomerSupportReward` model, exposed on each observation as `reward_details`, so agents can learn from richer reward decomposition while still complying with the standard scalar reward return.
+`state()` exposes the full internal environment state for debugging, testing, and inspection.
+
+## Typed Models
+
+The environment defines typed Pydantic models for:
+
+- `CustomerSupportAction`
+- `CustomerSupportObservation`
+- `CustomerSupportReward`
+- `CustomerSupportState`
+
+These models make the environment explicit, inspectable, and easier to integrate with OpenEnv tooling.
 
 ## Action Space
 
-`CustomerSupportAction` supports these operations:
+The agent may choose from the following structured actions:
 
 - `search_policy(argument)`
 - `open_order(argument)`
@@ -52,7 +82,7 @@ The project also defines a typed `CustomerSupportReward` model, exposed on each 
 - `draft_reply(message)`
 - `submit_resolution(resolution)`
 
-`submit_resolution` uses a typed `ResolutionPayload` with:
+Final submission uses the typed `ResolutionPayload`:
 
 - `resolution_code`
 - `refund_amount`
@@ -60,44 +90,109 @@ The project also defines a typed `CustomerSupportReward` model, exposed on each 
 - `shipping_refund`
 - `message`
 
+The environment validates actions and penalizes unsupported or low-quality behavior such as invalid routes, invalid priorities, empty tags, and hallucinated lookups.
+
 ## Observation Space
 
 Each `CustomerSupportObservation` includes:
 
-- task instructions and structured task summary
-- currently visible artifacts (order, policy, account, logs)
+- high-level task instructions
+- a structured task summary
+- visible artifacts such as order records, policy entries, account data, and logs
 - selected tags, route, priority, and reply draft
 - action history
-- remaining steps
-- typed reward breakdown in `reward_details`
+- remaining step budget
+- a typed reward decomposition in `reward_details`
+
+This allows agents to reason from explicit state rather than brittle free-form text alone.
 
 ## State Space
 
-`CustomerSupportState` includes the current episode id, step count, visible artifacts, route/priority/tags, cumulative reward, progress score, last submitted resolution, and evaluation snapshot.
+`CustomerSupportState` tracks the full environment state, including:
+
+- episode id
+- step count
+- current task id
+- visible artifacts
+- accumulated tags
+- priority and routing decisions
+- current reply draft
+- last submitted resolution
+- cumulative reward
+- progress score
+- evaluation snapshot
+- hidden context used for deterministic bookkeeping
 
 ## Tasks
 
-Three deterministic tasks are included, with escalating difficulty:
+The environment includes three deterministic tasks with increasing difficulty.
 
-1. `delayed_shipping_refund` (`easy`)
-   Refund the shipping fee for a shipment that is more than five days late, route to logistics, and respond appropriately.
-2. `defective_return_window` (`medium`)
-   Handle a defective appliance within the return window, add multiple tags, route to returns, and approve a full refund.
-3. `subscription_cancellation_dispute` (`hard`)
-   Resolve a VIP customer’s billing dispute after a failed cancellation automation event, requiring log lookup, urgent billing routing, refund, and goodwill credit.
+### 1. `delayed_shipping_refund` — Easy
+
+The agent handles a delayed shipment that has exceeded the promised delivery window. The correct behavior is to inspect the order and policy, route to logistics, add the delay tag, refund the shipping fee, and explain the action clearly to the customer.
+
+### 2. `defective_return_window` — Medium
+
+The agent handles a defective appliance reported within the return window. This task requires the correct return policy lookup, high-priority routing to returns, multiple tags, and a full refund path.
+
+### 3. `subscription_cancellation_dispute` — Hard
+
+The agent handles a VIP billing dispute caused by a failed cancellation workflow. This task requires looking at subscription state, cancellation logs, billing policy, VIP context, urgent billing routing, a refund, and a goodwill credit.
+
+The difficulty progression is meaningful:
+
+- the easy task requires basic lookup and a single financial action
+- the medium task requires multi-tag reasoning and more precise routing
+- the hard task requires cross-artifact reasoning, VIP handling, and higher-cost policy judgment
+
+## Grading
+
+Each task has a deterministic grader that returns a score in `[0.0, 1.0]`.
+
+The grader evaluates:
+
+- whether the correct evidence was retrieved
+- whether routing and priority are correct
+- whether required tags were added
+- whether the reply includes key required information
+- whether the final resolution code and monetary values are correct
+
+The scoring logic is deterministic, reproducible, and does not rely on randomness.
 
 ## Reward Design
 
-Reward is shaped throughout the trajectory:
+The reward function is shaped across the full trajectory rather than being purely terminal.
 
-- positive signal for discovering required evidence
-- positive signal for correct route, priority, tags, and reply content
-- final score boost on successful `submit_resolution`
-- penalties for repeated actions, invalid actions, out-of-order API use, hallucinated lookups, post-terminal actions, and running out of steps
+Positive reward is assigned for:
 
-The deterministic grader produces a final score in `[0.0, 1.0]`. Per-step scalar rewards are clipped into `[0.0, 1.0]` while still preserving penalty information inside `reward_details`.
+- discovering required artifacts
+- moving toward the correct route and priority
+- improving tag coverage
+- improving reply quality
+- submitting a higher-quality final resolution
 
-## Project Layout
+Penalties are applied for:
+
+- repeated actions
+- invalid actions
+- hallucinated or unsupported lookups
+- out-of-order API usage
+- exceeding the maximum step budget
+- acting after an episode is already complete
+
+Per-step scalar reward is clipped into `[0.0, 1.0]`, while the richer penalty and progress decomposition is preserved in `reward_details`.
+
+## Safety and Robustness
+
+The environment is designed to fail safely:
+
+- invalid task ids are rejected cleanly
+- invalid actions return controlled errors
+- `step()` cannot be used before `reset()`
+- alias task ids such as `01`, `02`, `03`, `easy`, `medium`, and `hard` are supported
+- episode boundaries are enforced through `done` and `max_steps`
+
+## Project Structure
 
 ```text
 support_queue_env/
@@ -110,39 +205,29 @@ support_queue_env/
   server/
     app.py
     support_queue_environment.py
-scripts/
-  run_baseline.py
-inference.py
 server/
   app.py
   Dockerfile
+scripts/
+  run_baseline.py
+  validate-submission.sh
 tests/
   test_environment.py
+  test_server_api.py
+inference.py
 openenv.yaml
 Dockerfile
+uv.lock
 ```
 
-## Setup
+## Local Development
 
-Install locally:
+Create a virtual environment and install the project:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
-```
-
-If you want to validate against the upstream OpenEnv package as well:
-
-```bash
-pip install -e .[dev,openenv]
-openenv validate
-```
-
-Run the server locally:
-
-```bash
-uvicorn support_queue_env.server.app:app --host 0.0.0.0 --port 7860
 ```
 
 Run tests:
@@ -151,52 +236,72 @@ Run tests:
 pytest
 ```
 
+Validate the environment:
+
+```bash
+openenv validate . --json
+```
+
+Run the API locally:
+
+```bash
+uvicorn support_queue_env.server.app:app --host 0.0.0.0 --port 7860
+```
+
+Useful endpoints:
+
+- `/docs`
+- `/health`
+- `/metadata`
+- `/reset`
+- `/step`
+- `/state`
+
 ## Docker
 
-Build and run:
+Build and run locally:
 
 ```bash
 docker build -t support-queue-openenv .
 docker run --rm -p 7860:7860 support-queue-openenv
 ```
 
-Health check:
+Smoke test:
 
 ```bash
 curl http://localhost:7860/health
-```
-
-Runtime metadata:
-
-```bash
 curl http://localhost:7860/metadata
 ```
 
-## Hugging Face Spaces
+## Hugging Face Spaces Deployment
 
-This repo is prepared for a Docker Space. The front matter at the top of this `README.md` sets `sdk: docker` and includes the `openenv` tag. Pushing the repository to a new HF Space is enough for deployment once the Space is created.
+This repository is prepared for a Docker-based Hugging Face Space. The front matter at the top of this README sets:
 
-Recommended Space settings:
+- `sdk: docker`
+- `app_port: 7860`
+- `openenv` tag metadata
 
-- SDK: Docker
-- Port: `7860`
-- Tag: `openenv`
+To deploy:
 
-## Inference Script
+1. Create a new Hugging Face Space with SDK set to `Docker`
+2. Push this repository to the Space
+3. Wait for the image build to complete
+4. Verify:
+   - `https://<space>.hf.space/health`
+   - `https://<space>.hf.space/docs`
+   - `https://<space>.hf.space/metadata`
 
-The required inference runner is [inference.py](/Users/abhishekrajdhardubey/Documents/Projects/scaler/inference.py). It uses the OpenAI client and reads:
+## Inference
 
-- `API_BASE_URL`
-- `MODEL_NAME`
+The required inference entrypoint is `inference.py`.
+
+It reads:
+
 - `OPENAI_API_KEY`
+- `MODEL_NAME`
+- `API_BASE_URL`
 
-It logs exactly:
-
-```text
-[START] Task=<task_id>
-[STEP] reward=<float> done=<bool>
-[END] total_reward=<float>
-```
+Example:
 
 ```bash
 export OPENAI_API_KEY=...
@@ -205,17 +310,47 @@ export API_BASE_URL=https://api.openai.com/v1
 python inference.py
 ```
 
-The script runs all three tasks in a fixed order with deterministic prompts, `temperature=0`, and `seed=0`.
+The script is deterministic by construction:
+
+- fixed task order
+- deterministic environment state
+- deterministic graders
+- `temperature=0`
+- `seed=0`
+
+Expected logging format:
+
+```text
+[START] Task=<task_id>
+[STEP] reward=<float> done=<bool>
+[END] total_reward=<float>
+```
+
+## Submission Validation
+
+After deploying to Hugging Face Spaces, you can run the included validator:
+
+```bash
+chmod +x scripts/validate-submission.sh
+./scripts/validate-submission.sh https://your-space-name.hf.space .
+```
+
+This checks:
+
+- the live Space responds on `/reset`
+- Docker builds successfully
+- `openenv validate` passes
 
 ## Reproducibility
 
-Reproducibility comes from:
+Reproducibility is supported by:
 
-- deterministic task data
-- deterministic graders
-- fixed task order in the inference script
-- `temperature=0` for model calls
+- deterministic task fixtures
+- deterministic grader logic
+- checked-in `uv.lock`
+- fixed task order in `inference.py`
+- deterministic model invocation settings
 
-## Baseline Scores
+## Baseline Results
 
-The inference script is included and deterministic, but I did not execute it in this workspace because no valid `OPENAI_API_KEY` was available during implementation. Once credentials are present, `python inference.py` will emit reproducible per-task reward traces.
+The repository includes a reproducible inference runner, but baseline execution is not included in this README because it depends on external model credentials. Once valid API credentials are configured, `python inference.py` will produce deterministic per-task logs and aggregate outcomes suitable for benchmarking.
