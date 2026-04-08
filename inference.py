@@ -59,6 +59,21 @@ def _optional_env(name: str) -> str | None:
     return value if value else None
 
 
+def _resolve_api_config() -> tuple[str | None, str | None, str | None]:
+    proxy_base_url = _optional_env("API_BASE_URL")
+    proxy_api_key = _optional_env("API_KEY")
+    model_name = _optional_env("MODEL_NAME")
+
+    if proxy_base_url and proxy_api_key:
+        return proxy_base_url, proxy_api_key, model_name
+
+    openai_api_key = _optional_env("OPENAI_API_KEY")
+    if openai_api_key and model_name:
+        return os.getenv("API_BASE_URL", "https://api.openai.com/v1"), openai_api_key, model_name
+
+    return None, None, model_name
+
+
 def _prompt(observation: CustomerSupportObservation) -> str:
     return json.dumps(
         {
@@ -209,12 +224,10 @@ def run_episode(task_id: str, client: Any | None = None, model_name: str | None 
 
 
 def main() -> list[dict[str, Any]]:
-    api_key = _optional_env("OPENAI_API_KEY")
-    model_name = _optional_env("MODEL_NAME")
+    api_base_url, api_key, model_name = _resolve_api_config()
     if api_key and model_name:
         if OpenAI is None:
-            raise RuntimeError("openai package is required when OPENAI_API_KEY and MODEL_NAME are set")
-        api_base_url = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+            raise RuntimeError("openai package is required when API-backed inference is enabled")
         client = OpenAI(api_key=api_key, base_url=api_base_url)
         return [run_episode(task_id, client=client, model_name=model_name) for task_id in TASK_ORDER]
     return [run_episode(task_id) for task_id in TASK_ORDER]
