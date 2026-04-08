@@ -54,3 +54,32 @@ def test_task_alias_and_invalid_action_penalty_are_supported():
     result = client.step(CustomerSupportAction(action_type="route_ticket", argument="unknown_team"))
     assert result.reward == 0.0
     assert result.observation.reward_details.penalties["invalid_action"] < 0.0
+
+
+def test_conflicting_evidence_improves_hard_task_progress():
+    client = SupportQueueEnvClient()
+    client.reset(task_id="subscription_cancellation_dispute")
+    client.step(CustomerSupportAction(action_type="open_log", argument="cancellation log S300"))
+    client.step(CustomerSupportAction(action_type="search_policy", argument="billing cancellation policy"))
+    before = client.state().evaluation.conflict_coverage
+    client.step(CustomerSupportAction(action_type="search_policy", argument="vip retention save playbook"))
+    after = client.state().evaluation.conflict_coverage
+    assert before < after
+    assert after == 1.0
+
+
+def test_unsupported_claims_in_resolution_increase_hallucination_penalty():
+    client = SupportQueueEnvClient()
+    client.reset(task_id="delayed_shipping_refund")
+    result = client.step(
+        CustomerSupportAction(
+            action_type="submit_resolution",
+            resolution=ResolutionPayload(
+                resolution_code="request_more_info",
+                message="I issued a refund based on policy and confirmed it in the log.",
+            ),
+        )
+    )
+    assert result.done is True
+    assert result.observation.reward_details.penalties["unsupported_claims"] < 0.0
+    assert result.info["evaluation"]["unsupported_claim_penalty"] > 0.0

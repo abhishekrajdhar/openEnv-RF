@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from ..models import CustomerSupportAction
-from .support_queue_environment import SupportQueueEnvironment
+from .support_queue_environment import SupportQueueEnvironment, TOOL_DESCRIPTORS
 
 
 env = SupportQueueEnvironment()
@@ -28,6 +28,18 @@ def metadata() -> dict:
         "name": "support_queue_env",
         "description": "Customer support triage and resolution environment for OpenEnv.",
         "max_steps": 12,
+        "tool_use_simulation": [
+            {"action_type": tool.action_type, "system_name": tool.system_name, "description": tool.description}
+            for tool in TOOL_DESCRIPTORS
+        ],
+        "evaluation_dimensions": [
+            "task_completion_accuracy",
+            "policy_adherence",
+            "tool_usage_score",
+            "response_quality",
+            "user_satisfaction_proxy",
+            "hallucination_penalty",
+        ],
         "tasks": [
             {"task_id": "delayed_shipping_refund", "difficulty": "easy"},
             {"task_id": "defective_return_window", "difficulty": "medium"},

@@ -50,6 +50,12 @@ class VisibleArtifact(OpenEnvModel):
     content: str
 
 
+class ToolDescriptor(OpenEnvModel):
+    action_type: ActionName
+    system_name: str
+    description: str
+
+
 class TaskSummary(OpenEnvModel):
     task_id: str
     title: str
@@ -58,6 +64,7 @@ class TaskSummary(OpenEnvModel):
     visible_order_id: str | None = None
     visible_customer_id: str | None = None
     success_criteria: List[str]
+    reasoning_challenges: List[str] = Field(default_factory=list)
 
 
 class CustomerSupportReward(OpenEnvModel):
@@ -74,6 +81,7 @@ class CustomerSupportObservation(Observation):
     instructions: str
     task: TaskSummary
     visible_artifacts: List[VisibleArtifact] = Field(default_factory=list)
+    available_tools: List[ToolDescriptor] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
     priority: Literal["low", "normal", "high", "urgent"] = "normal"
     route: str | None = None
@@ -89,6 +97,7 @@ class ExpectedOutcome(OpenEnvModel):
     priority: Literal["low", "normal", "high", "urgent"]
     required_tags: List[str]
     required_artifacts: List[str]
+    conflicting_artifacts: List[str] = Field(default_factory=list)
     resolution_code: str
     refund_amount: float = 0.0
     goodwill_credit: float = 0.0
@@ -98,11 +107,20 @@ class ExpectedOutcome(OpenEnvModel):
 
 class EvaluationSnapshot(OpenEnvModel):
     discovered_required_artifacts: List[str] = Field(default_factory=list)
+    discovered_conflicting_artifacts: List[str] = Field(default_factory=list)
+    artifact_coverage: float = 0.0
+    conflict_coverage: float = 0.0
     tag_coverage: float = 0.0
     reply_coverage: float = 0.0
+    task_completion_accuracy: float = 0.0
+    policy_adherence: float = 0.0
+    tool_usage_score: float = 0.0
+    response_quality: float = 0.0
+    user_satisfaction_proxy: float = 0.0
     routing_correct: bool = False
     priority_correct: bool = False
     hallucination_penalty: float = 0.0
+    unsupported_claim_penalty: float = 0.0
     final_score: float = 0.0
 
 

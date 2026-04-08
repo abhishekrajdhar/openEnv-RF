@@ -14,6 +14,8 @@ def test_health_and_metadata_endpoints():
     metadata = client.get("/metadata")
     assert metadata.status_code == 200
     assert metadata.json()["name"] == "support_queue_env"
+    assert any(item["action_type"] == "search_policy" for item in metadata.json()["tool_use_simulation"])
+    assert "tool_usage_score" in metadata.json()["evaluation_dimensions"]
 
 
 def test_reset_accepts_alias_and_step_requires_episode():

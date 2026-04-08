@@ -1,8 +1,8 @@
-"""Deterministic customer support tasks."""
+"""Deterministic customer support tasks with multi-step evidence conflicts."""
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -41,6 +41,9 @@ def build_tasks() -> dict[str, SupportTask]:
                 "Route the ticket to logistics with normal priority.",
                 "Tag the case as delayed_shipment.",
                 "Refund the shipping fee and explain the refund in the reply.",
+            ],
+            reasoning_challenges=[
+                "Use order timing together with policy rules before issuing a refund.",
             ],
         ),
         instructions=common_instructions,
@@ -96,10 +99,14 @@ def build_tasks() -> dict[str, SupportTask]:
             visible_order_id="B200",
             visible_customer_id="C200",
             success_criteria=[
-                "Inspect the order and defective-item return policy.",
+                "Inspect the order plus both the defective-item and opened-box policies.",
                 "Route to returns with high priority.",
                 "Tag the case as defective_item and safety_risk.",
                 "Approve return and full refund with a clear reply.",
+            ],
+            reasoning_challenges=[
+                "Resolve a conflict between the normal opened-box rule and the defective-item exception.",
+                "Combine product safety information with return eligibility.",
             ],
         ),
         instructions=common_instructions,
@@ -110,7 +117,8 @@ def build_tasks() -> dict[str, SupportTask]:
                 title="Order B200",
                 content=(
                     "Customer C200. Product: PulsePro Blender. Paid: $79.99. Delivered: 2026-03-02. "
-                    "Return window: 30 days. Item status: customer reported defect."
+                    "Return window: 30 days. Item status: customer reported defect. "
+                    "Packaging opened 20 days ago. Notes: smoke observed on second use."
                 ),
             )
         ],
@@ -124,6 +132,15 @@ def build_tasks() -> dict[str, SupportTask]:
                     "full refund, and high-priority routing to returns. Safety issues should be tagged."
                 ),
             ),
+            "opened box policy": VisibleArtifact(
+                artifact_type="policy",
+                artifact_id="P_OPEN_BOX",
+                title="Opened-box appliance policy",
+                content=(
+                    "Opened but non-defective kitchen appliances are usually ineligible for cash refunds "
+                    "and may receive exchange or store credit only."
+                ),
+            ),
             "customer C200": VisibleArtifact(
                 artifact_type="account",
                 artifact_id="C200",
@@ -135,12 +152,13 @@ def build_tasks() -> dict[str, SupportTask]:
             route="returns",
             priority="high",
             required_tags=["defective_item", "safety_risk"],
-            required_artifacts=["B200", "P_DEFECT"],
+            required_artifacts=["B200", "P_DEFECT", "P_OPEN_BOX"],
+            conflicting_artifacts=["P_DEFECT", "P_OPEN_BOX"],
             resolution_code="return_and_refund",
             refund_amount=79.99,
             reply_must_include=["refund", "return label", "defective"],
         ),
-        reference_notes=["Requires multiple tags and stricter routing."],
+        reference_notes=["Requires conflict resolution between standard opened-box rules and the defect exception."],
     )
 
     hard = SupportTask(
@@ -155,10 +173,14 @@ def build_tasks() -> dict[str, SupportTask]:
             visible_order_id="S300",
             visible_customer_id="C300",
             success_criteria=[
-                "Inspect the subscription record, cancellation log, and billing policy.",
+                "Inspect the subscription record, cancellation log, billing policy, and VIP save-playbook.",
                 "Route to billing with urgent priority.",
                 "Tag the case as billing_dispute and vip_customer.",
                 "Issue the prorated refund plus goodwill credit and explain why.",
+            ],
+            reasoning_challenges=[
+                "Resolve conflict between a standard retention playbook and a billing-failure remediation rule.",
+                "Use logs, policy, and VIP context together before deciding between refund and save-offer treatment.",
             ],
         ),
         instructions=common_instructions,
@@ -193,6 +215,15 @@ def build_tasks() -> dict[str, SupportTask]:
                     "route urgently to billing, and confirm the cancellation has been completed."
                 ),
             ),
+            "vip retention save playbook": VisibleArtifact(
+                artifact_type="policy",
+                artifact_id="P_SAVE",
+                title="VIP retention save playbook",
+                content=(
+                    "For dissatisfied VIP subscribers with active plans, agents may offer a discount or credit "
+                    "instead of refunding if there is no verified billing or cancellation-system error."
+                ),
+            ),
             "customer C300": VisibleArtifact(
                 artifact_type="account",
                 artifact_id="C300",
@@ -207,13 +238,14 @@ def build_tasks() -> dict[str, SupportTask]:
             route="billing",
             priority="urgent",
             required_tags=["billing_dispute", "vip_customer"],
-            required_artifacts=["S300", "L_CANCEL_300", "P_BILLING", "C300"],
+            required_artifacts=["S300", "L_CANCEL_300", "P_BILLING", "P_SAVE", "C300"],
+            conflicting_artifacts=["L_CANCEL_300", "P_BILLING", "P_SAVE"],
             resolution_code="refund_and_credit",
             refund_amount=24.50,
             goodwill_credit=10.00,
             reply_must_include=["cancel", "refund", "credit", "vip"],
         ),
-        reference_notes=["Requires hidden log lookup and VIP handling."],
+        reference_notes=["Requires resolving a retention-playbook conflict using logs, billing policy, and VIP context."],
     )
 
     return {

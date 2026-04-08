@@ -34,6 +34,7 @@ Allowed action_type values:
 search_policy, open_order, open_account, open_log, set_priority, route_ticket, add_tag, draft_reply, submit_resolution
 
 Use only evidence visible in the observation. Avoid repeated or invalid actions.
+Resolve conflicting policy or log information before finalizing the case.
 Submit a final resolution once the ticket is fully handled.
 """.strip()
 

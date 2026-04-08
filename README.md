@@ -38,6 +38,33 @@ Many agent benchmarks over-index on games, synthetic tool use, or loosely specif
 
 The environment is therefore useful both for reinforcement learning research and for agent evaluation in real-world automation settings.
 
+## Multi-Step Reasoning
+
+Tasks require multi-step reasoning across heterogeneous artifacts and realistic operational constraints.
+
+Agents must:
+
+- retrieve evidence from structured sources such as orders, policies, account records, and internal logs
+- synthesize multiple signals before acting
+- resolve incomplete or conflicting information
+- take sequential tool-like actions before submitting a final resolution
+
+This makes the environment well suited for evaluating long-horizon reasoning, structured decision-making, and tool-augmented agents in a realistic support workflow.
+
+## Tool-Use Simulation
+
+The environment models real-world tool usage patterns.
+
+Each action corresponds to an internal support tool:
+
+- `search_policy` → policy retrieval system
+- `open_order` → order database lookup
+- `open_account` → customer profile system
+- `open_log` → internal logs
+- `submit_resolution` → ticketing backend
+
+This enables evaluation of tool-augmented agents and LLM-based workflows.
+
 ## OpenEnv API
 
 The environment implements the standard API:
@@ -103,6 +130,7 @@ Each `CustomerSupportObservation` includes:
 - action history
 - remaining step budget
 - a typed reward decomposition in `reward_details`
+- reasoning-oriented task metadata, including challenge descriptions for harder tasks
 
 This allows agents to reason from explicit state rather than brittle free-form text alone.
 
@@ -133,11 +161,11 @@ The agent handles a delayed shipment that has exceeded the promised delivery win
 
 ### 2. `defective_return_window` — Medium
 
-The agent handles a defective appliance reported within the return window. This task requires the correct return policy lookup, high-priority routing to returns, multiple tags, and a full refund path.
+The agent handles a defective appliance reported within the return window. This task now includes a conflict between the normal opened-box policy and the defective-item exception, so the agent must inspect both and justify the refund path.
 
 ### 3. `subscription_cancellation_dispute` — Hard
 
-The agent handles a VIP billing dispute caused by a failed cancellation workflow. This task requires looking at subscription state, cancellation logs, billing policy, VIP context, urgent billing routing, a refund, and a goodwill credit.
+The agent handles a VIP billing dispute caused by a failed cancellation workflow. This task now requires reconciling a retention save-playbook with a billing-failure remediation policy using subscription state, cancellation logs, and VIP account context.
 
 The difficulty progression is meaningful:
 
@@ -152,12 +180,50 @@ Each task has a deterministic grader that returns a score in `[0.0, 1.0]`.
 The grader evaluates:
 
 - whether the correct evidence was retrieved
+- whether conflicting evidence was fully examined before submission
 - whether routing and priority are correct
 - whether required tags were added
 - whether the reply includes key required information
 - whether the final resolution code and monetary values are correct
 
 The scoring logic is deterministic, reproducible, and does not rely on randomness.
+
+## Hallucination-Aware Evaluation
+
+The environment penalizes hallucinated actions and unsupported reasoning patterns.
+
+Examples include:
+
+- referencing non-existent orders, accounts, or logs
+- attempting unsupported routes or invalid priorities
+- citing policies that were not retrieved
+- submitting actions that are not grounded in available evidence
+
+This helps evaluate agents not only on end-task correctness, but also on whether they stay grounded in the evidence exposed by the environment.
+
+## Evaluation Metrics
+
+The environment evaluates agents across multiple dimensions:
+
+- task completion accuracy
+- policy adherence
+- tool usage correctness
+- response quality
+- user satisfaction proxy
+
+These metrics are exposed through deterministic graders and structured reward signals.
+
+## Comparison to Existing Benchmarks
+
+Unlike game-based or synthetic benchmarks, this environment:
+
+- operates in a real business domain
+- requires structured decision-making, not just text generation
+- evaluates both actions and outcomes
+- penalizes hallucinations and unsupported reasoning
+- supports tool-augmented workflows
+
+This makes it a strong candidate for evaluating production-ready AI agents.
 
 ## Reward Design
 

@@ -24,39 +24,92 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     expected = task.expected
     visible_ids = {artifact.artifact_id for artifact in state.visible_artifacts}
     discovered = [artifact_id for artifact_id in expected.required_artifacts if artifact_id in visible_ids]
+    discovered_conflicts = [artifact_id for artifact_id in expected.conflicting_artifacts if artifact_id in visible_ids]
+    artifact_coverage = len(discovered) / len(expected.required_artifacts) if expected.required_artifacts else 1.0
+    conflict_coverage = (
+        len(discovered_conflicts) / len(expected.conflicting_artifacts)
+        if expected.conflicting_artifacts
+        else 1.0
+    )
     tag_hits = sum(1 for tag in expected.required_tags if tag in state.tags)
     tag_coverage = tag_hits / len(expected.required_tags) if expected.required_tags else 1.0
     reply_coverage = _contains_all_terms(state.draft_reply, expected.reply_must_include)
-    hallucination_penalty = min(float(state.hidden_context.get("invalid_action_count", 0)) * 0.02, 0.10)
-
-    final_score = 0.0
-    final_score += 0.20 * (len(discovered) / len(expected.required_artifacts))
-    final_score += 0.15 if state.route == expected.route else 0.0
-    final_score += 0.15 if state.priority == expected.priority else 0.0
-    final_score += 0.15 * tag_coverage
-    final_score += 0.15 * reply_coverage
+    invalid_action_penalty = min(float(state.hidden_context.get("invalid_action_count", 0)) * 0.02, 0.10)
+    unsupported_claim_penalty = min(float(state.hidden_context.get("unsupported_claim_count", 0)) * 0.03, 0.12)
+    hallucination_penalty = round(min(invalid_action_penalty + unsupported_claim_penalty, 0.18), 4)
 
     resolution = state.last_resolution
+    resolution_code_score = 1.0 if resolution and resolution.resolution_code == expected.resolution_code else 0.0
+    refund_score = 1.0 if resolution and abs(resolution.refund_amount - expected.refund_amount) < 0.01 else 0.0
+    shipping_score = 1.0 if resolution and abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else 0.0
+    credit_score = 1.0 if resolution and abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else 0.0
+
+    task_completion_accuracy = min(
+        1.0,
+        0.35 * artifact_coverage
+        + 0.15 * conflict_coverage
+        + 0.15 * (1.0 if state.route == expected.route else 0.0)
+        + 0.10 * (1.0 if state.priority == expected.priority else 0.0)
+        + 0.10 * tag_coverage
+        + 0.15 * resolution_code_score,
+    )
+    policy_adherence = min(
+        1.0,
+        0.25 * (1.0 if state.route == expected.route else 0.0)
+        + 0.20 * (1.0 if state.priority == expected.priority else 0.0)
+        + 0.20 * tag_coverage
+        + 0.20 * conflict_coverage
+        + 0.15 * resolution_code_score,
+    )
+    tool_usage_score = min(1.0, 0.65 * artifact_coverage + 0.35 * conflict_coverage)
+    response_quality = reply_coverage
+    user_satisfaction_proxy = min(
+        1.0,
+        0.45 * reply_coverage
+        + 0.20 * refund_score
+        + 0.10 * shipping_score
+        + 0.10 * credit_score
+        + 0.15 * (1.0 if state.route == expected.route else 0.0),
+    )
+
+    final_score = 0.0
+    final_score += 0.15 * artifact_coverage
+    final_score += 0.10 * conflict_coverage
+    final_score += 0.12 if state.route == expected.route else 0.0
+    final_score += 0.12 if state.priority == expected.priority else 0.0
+    final_score += 0.11 * tag_coverage
+    final_score += 0.10 * reply_coverage
+
     if resolution:
-        final_score += 0.12 if resolution.resolution_code == expected.resolution_code else 0.0
-        final_score += 0.04 if abs(resolution.refund_amount - expected.refund_amount) < 0.01 else 0.0
-        final_score += 0.02 if abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else 0.0
-        final_score += 0.02 if abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else 0.0
+        final_score += 0.15 * resolution_code_score
+        final_score += 0.08 * refund_score
+        final_score += 0.03 * shipping_score
+        final_score += 0.04 * credit_score
     final_score = max(0.0, final_score - hallucination_penalty)
 
     return EvaluationSnapshot(
         discovered_required_artifacts=discovered,
+        discovered_conflicting_artifacts=discovered_conflicts,
+        artifact_coverage=round(artifact_coverage, 4),
+        conflict_coverage=round(conflict_coverage, 4),
         tag_coverage=round(tag_coverage, 4),
         reply_coverage=round(reply_coverage, 4),
+        task_completion_accuracy=round(task_completion_accuracy, 4),
+        policy_adherence=round(policy_adherence, 4),
+        tool_usage_score=round(tool_usage_score, 4),
+        response_quality=round(response_quality, 4),
+        user_satisfaction_proxy=round(user_satisfaction_proxy, 4),
         routing_correct=state.route == expected.route,
         priority_correct=state.priority == expected.priority,
-        hallucination_penalty=round(hallucination_penalty, 4),
+        hallucination_penalty=hallucination_penalty,
+        unsupported_claim_penalty=round(unsupported_claim_penalty, 4),
         final_score=round(min(final_score, 1.0), 4),
     )
 
 
 def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: CustomerSupportState) -> Tuple[float, Dict[str, float]]:
     expected = task.expected
+    visible_ids = {a.artifact_id for a in state.visible_artifacts}
     components = {
         "resolution_code": 1.0 if resolution.resolution_code == expected.resolution_code else 0.0,
         "refund_amount": 1.0 if abs(resolution.refund_amount - expected.refund_amount) < 0.01 else 0.0,
@@ -67,8 +120,14 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
         "priority": 1.0 if state.priority == expected.priority else 0.0,
         "tags": sum(1 for tag in expected.required_tags if tag in state.tags) / len(expected.required_tags),
         "artifacts": (
-            sum(1 for artifact_id in expected.required_artifacts if artifact_id in {a.artifact_id for a in state.visible_artifacts})
+            sum(1 for artifact_id in expected.required_artifacts if artifact_id in visible_ids)
             / len(expected.required_artifacts)
+        ),
+        "conflicts": (
+            sum(1 for artifact_id in expected.conflicting_artifacts if artifact_id in visible_ids)
+            / len(expected.conflicting_artifacts)
+            if expected.conflicting_artifacts
+            else 1.0
         ),
     }
 
@@ -78,9 +137,10 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
         + 0.05 * components["shipping_refund"]
         + 0.05 * components["goodwill_credit"]
         + 0.15 * components["reply_quality"]
-        + 0.15 * components["route"]
-        + 0.10 * components["priority"]
-        + 0.10 * components["tags"]
-        + 0.10 * components["artifacts"]
+        + 0.13 * components["route"]
+        + 0.08 * components["priority"]
+        + 0.08 * components["tags"]
+        + 0.08 * components["artifacts"]
+        + 0.08 * components["conflicts"]
     )
     return round(min(score, 1.0), 4), components

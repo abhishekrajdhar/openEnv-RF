@@ -15,6 +15,7 @@ from ..models import (
     CustomerSupportReward,
     CustomerSupportState,
     ResolutionPayload,
+    ToolDescriptor,
 )
 from ..tasks import SupportTask, build_tasks
 
@@ -37,6 +38,53 @@ TASK_ALIASES = {
     "03": "subscription_cancellation_dispute",
     "hard": "subscription_cancellation_dispute",
 }
+TOOL_DESCRIPTORS = [
+    ToolDescriptor(
+        action_type="search_policy",
+        system_name="policy_retrieval_system",
+        description="Searches internal policies and playbooks.",
+    ),
+    ToolDescriptor(
+        action_type="open_order",
+        system_name="order_database",
+        description="Loads order and subscription records.",
+    ),
+    ToolDescriptor(
+        action_type="open_account",
+        system_name="customer_profile_system",
+        description="Retrieves account context and customer attributes.",
+    ),
+    ToolDescriptor(
+        action_type="open_log",
+        system_name="internal_log_viewer",
+        description="Retrieves internal event and workflow logs.",
+    ),
+    ToolDescriptor(
+        action_type="set_priority",
+        system_name="ticket_routing_console",
+        description="Sets operational priority for the case.",
+    ),
+    ToolDescriptor(
+        action_type="route_ticket",
+        system_name="ticket_routing_console",
+        description="Routes the case to the correct support queue.",
+    ),
+    ToolDescriptor(
+        action_type="add_tag",
+        system_name="case_annotation_system",
+        description="Adds structured case labels used by downstream teams.",
+    ),
+    ToolDescriptor(
+        action_type="draft_reply",
+        system_name="agent_reply_editor",
+        description="Creates the customer-facing response draft.",
+    ),
+    ToolDescriptor(
+        action_type="submit_resolution",
+        system_name="ticketing_backend",
+        description="Submits the final resolution and financial adjustments.",
+    ),
+]
 
 
 class SupportQueueEnvironment(Environment):
@@ -126,7 +174,8 @@ class SupportQueueEnvironment(Environment):
             state.draft_reply = (action.message or "").strip()
             status = "Saved draft reply."
         elif action.action_type == "submit_resolution":
-            status, partial_signals, valid_action = self._submit_resolution(action.resolution, task)
+            status, partial_signals, resolution_penalties, valid_action = self._submit_resolution(action.resolution, task)
+            penalties.update(resolution_penalties)
         else:
             raise ValueError(f"Unsupported action type: {action.action_type}")
 
@@ -203,6 +252,7 @@ class SupportQueueEnvironment(Environment):
             instructions=state.instructions,
             task=task.task,
             visible_artifacts=deepcopy(state.visible_artifacts),
+            available_tools=deepcopy(TOOL_DESCRIPTORS),
             tags=list(state.tags),
             priority=state.priority,
             route=state.route,
@@ -270,10 +320,10 @@ class SupportQueueEnvironment(Environment):
 
     def _submit_resolution(
         self, resolution: ResolutionPayload | None, task: SupportTask
-    ) -> tuple[str, Dict[str, float], bool]:
+    ) -> tuple[str, Dict[str, float], Dict[str, float], bool]:
         state = self._require_state()
         if resolution is None:
-            return "Resolution payload is required.", {}, False
+            return "Resolution payload is required.", {}, {}, False
         if resolution.message and not state.draft_reply:
             state.draft_reply = resolution.message
         state.last_resolution = resolution
@@ -283,7 +333,31 @@ class SupportQueueEnvironment(Environment):
         state.evaluation = compute_progress(task, state)
         signals = {f"final_{key}": round((value - 0.5) * 0.02, 4) for key, value in components.items()}
         signals["final_score_bonus"] = round(final_score * 0.3, 4)
-        return f"Resolution submitted with grader score {final_score:.2f}.", signals, True
+        penalties = self._unsupported_claim_penalties(resolution)
+        return f"Resolution submitted with grader score {final_score:.2f}.", signals, penalties, True
+
+    def _unsupported_claim_penalties(self, resolution: ResolutionPayload) -> Dict[str, float]:
+        state = self._require_state()
+        visible_types = {artifact.artifact_type for artifact in state.visible_artifacts}
+        message = (resolution.message or state.draft_reply or "").lower()
+        unsupported_claims = 0
+
+        if "refund" in message and (resolution.refund_amount + resolution.shipping_refund) <= 0:
+            unsupported_claims += 1
+        if "credit" in message and resolution.goodwill_credit <= 0:
+            unsupported_claims += 1
+        if "policy" in message and "policy" not in visible_types:
+            unsupported_claims += 1
+        if "log" in message and "log" not in visible_types:
+            unsupported_claims += 1
+
+        if unsupported_claims == 0:
+            return {}
+
+        state.hidden_context["unsupported_claim_count"] = int(
+            state.hidden_context.get("unsupported_claim_count", 0)
+        ) + unsupported_claims
+        return {"unsupported_claims": round(-0.03 * unsupported_claims, 4)}
 
     def _refresh_evaluation(self) -> None:
         task = self._require_task()
