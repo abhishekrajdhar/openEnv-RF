@@ -29,8 +29,8 @@ from support_queue_env.client import SupportQueueEnvClient
 from support_queue_env.models import CustomerSupportAction, CustomerSupportObservation, ResolutionPayload
 from support_queue_env.server.support_queue_environment import TASK_ORDER
 
-MIN_SCORE = 0.001
-MAX_SCORE = 0.999
+MIN_SCORE = 0.01
+MAX_SCORE = 0.95
 
 
 SYSTEM_PROMPT = """
@@ -244,7 +244,6 @@ def run_episode(task_id: str, client: Any | None = None, model_name: str | None 
     return {
         "task_id": task_id,
         "total_reward": final_score,
-        "final_score": final_score,
     }
 
 
