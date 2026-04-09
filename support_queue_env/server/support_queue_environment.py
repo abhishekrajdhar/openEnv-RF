@@ -87,6 +87,10 @@ TOOL_DESCRIPTORS = [
 ]
 
 
+def _strict_score(value: float) -> float:
+    return round(min(max(value, 0.01), 0.95), 4)
+
+
 class SupportQueueEnvironment(Environment):
     """Customer support triage environment with deterministic tasks."""
 
@@ -234,9 +238,9 @@ class SupportQueueEnvironment(Environment):
         state = self._require_state()
         state.cumulative_reward = round(state.cumulative_reward + reward_delta, 4)
         return CustomerSupportReward(
-            reward_delta=round(reward_delta, 4),
-            cumulative_reward=state.cumulative_reward,
-            progress_score=state.progress_score,
+            reward_delta=_strict_score(reward_delta),
+            cumulative_reward=_strict_score(state.cumulative_reward),
+            progress_score=_strict_score(state.progress_score),
             partial_signals=partial_signals or {},
             penalties=penalties or {},
             grader_score=grader_score,

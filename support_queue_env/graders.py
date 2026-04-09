@@ -42,8 +42,10 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     tag_coverage = tag_hits / len(expected.required_tags) if expected.required_tags else 1.0
     reply_coverage = _contains_all_terms(state.draft_reply, expected.reply_must_include)
     invalid_action_penalty = min(float(state.hidden_context.get("invalid_action_count", 0)) * 0.02, 0.10)
-    unsupported_claim_penalty = min(float(state.hidden_context.get("unsupported_claim_count", 0)) * 0.03, 0.12)
-    hallucination_penalty = round(min(invalid_action_penalty + unsupported_claim_penalty, 0.18), 4)
+    raw_unsupported_claim_penalty = min(float(state.hidden_context.get("unsupported_claim_count", 0)) * 0.03, 0.12)
+    raw_hallucination_penalty = min(invalid_action_penalty + raw_unsupported_claim_penalty, 0.18)
+    unsupported_claim_penalty = _strict_score(raw_unsupported_claim_penalty)
+    hallucination_penalty = _strict_score(raw_hallucination_penalty)
 
     resolution = state.last_resolution
     resolution_code_score = 1.0 if resolution and resolution.resolution_code == expected.resolution_code else 0.0
@@ -89,7 +91,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         final_score += 0.08 * refund_score
         final_score += 0.03 * shipping_score
         final_score += 0.04 * credit_score
-    final_score = _strict_score(final_score - hallucination_penalty)
+    final_score = _strict_score(final_score - raw_hallucination_penalty)
 
     return EvaluationSnapshot(
         discovered_required_artifacts=discovered,
