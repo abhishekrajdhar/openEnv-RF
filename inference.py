@@ -29,6 +29,9 @@ from support_queue_env.client import SupportQueueEnvClient
 from support_queue_env.models import CustomerSupportAction, CustomerSupportObservation, ResolutionPayload
 from support_queue_env.server.support_queue_environment import TASK_ORDER
 
+MIN_SCORE = 0.001
+MAX_SCORE = 0.999
+
 
 SYSTEM_PROMPT = """
 You are solving a deterministic customer support environment.
@@ -72,6 +75,12 @@ def _resolve_api_config() -> tuple[str | None, str | None, str | None]:
         return os.getenv("API_BASE_URL", "https://api.openai.com/v1"), openai_api_key, model_name
 
     return None, None, model_name
+
+
+def _strict_score(value: float | None) -> float:
+    if value is None:
+        return MIN_SCORE
+    return round(min(max(value, MIN_SCORE), MAX_SCORE), 4)
 
 
 def _prompt(observation: CustomerSupportObservation) -> str:
@@ -214,7 +223,7 @@ def _scripted_action(observation: CustomerSupportObservation) -> CustomerSupport
 def run_episode(task_id: str, client: Any | None = None, model_name: str | None = None) -> dict[str, Any]:
     env = SupportQueueEnvClient()
     observation = env.reset(task_id=task_id)
-    total_reward = 0.0
+    raw_total_reward = 0.0
     print(f"[START] Task={task_id}")
     done = False
 
@@ -225,16 +234,18 @@ def run_episode(task_id: str, client: Any | None = None, model_name: str | None 
         except Exception:
             fallback_action = _scripted_action(observation)
             step_result = env.step(fallback_action)
-        total_reward += step_result.reward
+        raw_total_reward += step_result.reward
         print(f"[STEP] reward={step_result.reward:.4f} done={step_result.done}")
         observation = step_result.observation
         done = step_result.done
 
-    print(f"[END] total_reward={total_reward:.4f}")
+    final_score = _strict_score(observation.reward_details.grader_score)
+    print(f"[END] total_reward={final_score:.4f}")
     return {
         "task_id": task_id,
-        "total_reward": round(total_reward, 4),
-        "final_score": observation.reward_details.grader_score,
+        "total_reward": final_score,
+        "final_score": final_score,
+        "raw_total_reward": round(raw_total_reward, 4),
     }
 
 
