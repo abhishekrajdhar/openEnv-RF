@@ -7,6 +7,9 @@ from typing import Dict, Tuple
 from .models import CustomerSupportState, EvaluationSnapshot, ResolutionPayload
 from .tasks import SupportTask
 
+MIN_SCORE = 0.001
+MAX_SCORE = 0.999
+
 
 def _normalize_text(text: str | None) -> str:
     return (text or "").strip().lower()
@@ -18,6 +21,10 @@ def _contains_all_terms(text: str | None, terms: list[str]) -> float:
         return 1.0
     hits = sum(1 for term in terms if term.lower() in normalized)
     return hits / len(terms)
+
+
+def _strict_score(value: float) -> float:
+    return round(min(max(value, MIN_SCORE), MAX_SCORE), 4)
 
 
 def compute_progress(task: SupportTask, state: CustomerSupportState) -> EvaluationSnapshot:
@@ -85,7 +92,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         final_score += 0.08 * refund_score
         final_score += 0.03 * shipping_score
         final_score += 0.04 * credit_score
-    final_score = max(0.0, final_score - hallucination_penalty)
+    final_score = _strict_score(final_score - hallucination_penalty)
 
     return EvaluationSnapshot(
         discovered_required_artifacts=discovered,
@@ -103,7 +110,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         priority_correct=state.priority == expected.priority,
         hallucination_penalty=hallucination_penalty,
         unsupported_claim_penalty=round(unsupported_claim_penalty, 4),
-        final_score=round(min(final_score, 1.0), 4),
+        final_score=final_score,
     )
 
 
@@ -143,4 +150,4 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
         + 0.08 * components["artifacts"]
         + 0.08 * components["conflicts"]
     )
-    return round(min(score, 1.0), 4), components
+    return _strict_score(score), components
