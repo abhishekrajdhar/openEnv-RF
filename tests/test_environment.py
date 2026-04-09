@@ -65,7 +65,7 @@ def test_conflicting_evidence_improves_hard_task_progress():
     client.step(CustomerSupportAction(action_type="search_policy", argument="vip retention save playbook"))
     after = client.state().evaluation.conflict_coverage
     assert before < after
-    assert after == 1.0
+    assert 0.99 <= after < 1.0
 
 
 def test_unsupported_claims_in_resolution_increase_hallucination_penalty():

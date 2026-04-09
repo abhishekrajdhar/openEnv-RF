@@ -245,7 +245,6 @@ def run_episode(task_id: str, client: Any | None = None, model_name: str | None 
         "task_id": task_id,
         "total_reward": final_score,
         "final_score": final_score,
-        "raw_total_reward": round(raw_total_reward, 4),
     }
 
 

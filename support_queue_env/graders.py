@@ -51,8 +51,7 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     shipping_score = 1.0 if resolution and abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else 0.0
     credit_score = 1.0 if resolution and abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else 0.0
 
-    task_completion_accuracy = min(
-        1.0,
+    task_completion_accuracy = _strict_score(
         0.35 * artifact_coverage
         + 0.15 * conflict_coverage
         + 0.15 * (1.0 if state.route == expected.route else 0.0)
@@ -60,18 +59,16 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         + 0.10 * tag_coverage
         + 0.15 * resolution_code_score,
     )
-    policy_adherence = min(
-        1.0,
+    policy_adherence = _strict_score(
         0.25 * (1.0 if state.route == expected.route else 0.0)
         + 0.20 * (1.0 if state.priority == expected.priority else 0.0)
         + 0.20 * tag_coverage
         + 0.20 * conflict_coverage
         + 0.15 * resolution_code_score,
     )
-    tool_usage_score = min(1.0, 0.65 * artifact_coverage + 0.35 * conflict_coverage)
-    response_quality = reply_coverage
-    user_satisfaction_proxy = min(
-        1.0,
+    tool_usage_score = _strict_score(0.65 * artifact_coverage + 0.35 * conflict_coverage)
+    response_quality = _strict_score(reply_coverage)
+    user_satisfaction_proxy = _strict_score(
         0.45 * reply_coverage
         + 0.20 * refund_score
         + 0.10 * shipping_score
@@ -97,15 +94,15 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     return EvaluationSnapshot(
         discovered_required_artifacts=discovered,
         discovered_conflicting_artifacts=discovered_conflicts,
-        artifact_coverage=round(artifact_coverage, 4),
-        conflict_coverage=round(conflict_coverage, 4),
-        tag_coverage=round(tag_coverage, 4),
-        reply_coverage=round(reply_coverage, 4),
-        task_completion_accuracy=round(task_completion_accuracy, 4),
-        policy_adherence=round(policy_adherence, 4),
-        tool_usage_score=round(tool_usage_score, 4),
-        response_quality=round(response_quality, 4),
-        user_satisfaction_proxy=round(user_satisfaction_proxy, 4),
+        artifact_coverage=_strict_score(artifact_coverage),
+        conflict_coverage=_strict_score(conflict_coverage),
+        tag_coverage=_strict_score(tag_coverage),
+        reply_coverage=_strict_score(reply_coverage),
+        task_completion_accuracy=task_completion_accuracy,
+        policy_adherence=policy_adherence,
+        tool_usage_score=tool_usage_score,
+        response_quality=response_quality,
+        user_satisfaction_proxy=user_satisfaction_proxy,
         routing_correct=state.route == expected.route,
         priority_correct=state.priority == expected.priority,
         hallucination_penalty=hallucination_penalty,
