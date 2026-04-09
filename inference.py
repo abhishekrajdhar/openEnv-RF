@@ -65,7 +65,7 @@ def _resolve_api_config() -> tuple[str | None, str | None, str | None]:
     model_name = _optional_env("MODEL_NAME")
 
     if proxy_base_url and proxy_api_key:
-        return proxy_base_url, proxy_api_key, model_name
+        return proxy_base_url, proxy_api_key, model_name or "gpt-4.1-mini"
 
     openai_api_key = _optional_env("OPENAI_API_KEY")
     if openai_api_key and model_name:
