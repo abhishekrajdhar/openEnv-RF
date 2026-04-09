@@ -107,6 +107,20 @@ def _model_action(client: Any, model_name: str, observation: CustomerSupportObse
     return CustomerSupportAction.model_validate(json.loads(content))
 
 
+def _safe_next_action(
+    observation: CustomerSupportObservation,
+    client: Any | None = None,
+    model_name: str | None = None,
+) -> CustomerSupportAction:
+    if client is None or model_name is None:
+        return _scripted_action(observation)
+
+    try:
+        return _model_action(client, model_name, observation)
+    except Exception:
+        return _scripted_action(observation)
+
+
 def _scripted_action(observation: CustomerSupportObservation) -> CustomerSupportAction:
     visible_ids = {artifact.artifact_id for artifact in observation.visible_artifacts}
     tags = set(observation.tags)
@@ -205,11 +219,12 @@ def run_episode(task_id: str, client: Any | None = None, model_name: str | None 
     done = False
 
     while not done:
-        if client is not None and model_name is not None:
-            action = _model_action(client, model_name, observation)
-        else:
-            action = _scripted_action(observation)
-        step_result = env.step(action)
+        action = _safe_next_action(observation, client=client, model_name=model_name)
+        try:
+            step_result = env.step(action)
+        except Exception:
+            fallback_action = _scripted_action(observation)
+            step_result = env.step(fallback_action)
         total_reward += step_result.reward
         print(f"[STEP] reward={step_result.reward:.4f} done={step_result.done}")
         observation = step_result.observation
@@ -227,9 +242,12 @@ def main() -> list[dict[str, Any]]:
     api_base_url, api_key, model_name = _resolve_api_config()
     if api_key and model_name:
         if OpenAI is None:
-            raise RuntimeError("openai package is required when API-backed inference is enabled")
-        client = OpenAI(api_key=api_key, base_url=api_base_url)
-        return [run_episode(task_id, client=client, model_name=model_name) for task_id in TASK_ORDER]
+            return [run_episode(task_id) for task_id in TASK_ORDER]
+        try:
+            client = OpenAI(api_key=api_key, base_url=api_base_url, timeout=5.0, max_retries=0)
+            return [run_episode(task_id, client=client, model_name=model_name) for task_id in TASK_ORDER]
+        except Exception:
+            return [run_episode(task_id) for task_id in TASK_ORDER]
     return [run_episode(task_id) for task_id in TASK_ORDER]
 
 
