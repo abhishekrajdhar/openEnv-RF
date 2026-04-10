@@ -117,8 +117,8 @@ class EvaluationSnapshot(OpenEnvModel):
     tool_usage_score: float = 0.0
     response_quality: float = 0.0
     user_satisfaction_proxy: float = 0.0
-    routing_correct: bool = False
-    priority_correct: bool = False
+    routing_correct: float = 0.001
+    priority_correct: float = 0.001
     hallucination_penalty: float = 0.0
     unsupported_claim_penalty: float = 0.0
     final_score: float = 0.0
