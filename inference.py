@@ -220,10 +220,9 @@ def _scripted_action(observation: CustomerSupportObservation) -> CustomerSupport
     )
 
 
-def run_episode(task_id: str, client: Any | None = None, model_name: str | None = None) -> dict[str, Any]:
+def run_episode(task_id: str, client: Any | None = None, model_name: str | None = None) -> float:
     env = SupportQueueEnvClient()
     observation = env.reset(task_id=task_id)
-    raw_total_reward = 0.0
     print(f"[START] Task={task_id}")
     done = False
 
@@ -234,20 +233,16 @@ def run_episode(task_id: str, client: Any | None = None, model_name: str | None 
         except Exception:
             fallback_action = _scripted_action(observation)
             step_result = env.step(fallback_action)
-        raw_total_reward += step_result.reward
         print(f"[STEP] reward={step_result.reward:.4f} done={step_result.done}")
         observation = step_result.observation
         done = step_result.done
 
     final_score = _strict_score(observation.reward_details.grader_score)
     print(f"[END] total_reward={final_score:.4f}")
-    return {
-        "task_id": task_id,
-        "total_reward": final_score,
-    }
+    return final_score
 
 
-def main() -> list[dict[str, Any]]:
+def main() -> list[float]:
     api_base_url, api_key, model_name = _resolve_api_config()
     if api_key and model_name:
         if OpenAI is None:
