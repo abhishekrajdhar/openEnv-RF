@@ -20,7 +20,7 @@ def _contains_all_terms(text: str | None, terms: list[str]) -> float:
     if not terms:
         return MAX_SCORE
     hits = sum(1 for term in terms if term.lower() in normalized)
-    return hits / len(terms)
+    return _strict_score(hits / len(terms))
 
 
 def _strict_score(value: float) -> float:
@@ -124,12 +124,12 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
         "reply_quality": _contains_all_terms(resolution.message or state.draft_reply, expected.reply_must_include),
         "route": MAX_SCORE if state.route == expected.route else MIN_SCORE,
         "priority": MAX_SCORE if state.priority == expected.priority else MIN_SCORE,
-        "tags": sum(1 for tag in expected.required_tags if tag in state.tags) / len(expected.required_tags),
-        "artifacts": (
+        "tags": _strict_score(sum(1 for tag in expected.required_tags if tag in state.tags) / len(expected.required_tags)),
+        "artifacts": _strict_score(
             sum(1 for artifact_id in expected.required_artifacts if artifact_id in visible_ids)
             / len(expected.required_artifacts)
         ),
-        "conflicts": (
+        "conflicts": _strict_score(
             sum(1 for artifact_id in expected.conflicting_artifacts if artifact_id in visible_ids)
             / len(expected.conflicting_artifacts)
             if expected.conflicting_artifacts

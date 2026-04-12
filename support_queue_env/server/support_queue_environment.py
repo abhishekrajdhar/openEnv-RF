@@ -88,7 +88,7 @@ TOOL_DESCRIPTORS = [
 
 
 def _strict_score(value: float) -> float:
-    return round(min(max(value, 0.01), 0.95), 4)
+    return round(min(max(value, 0.001), 0.999), 4)
 
 
 class SupportQueueEnvironment(Environment):
@@ -192,12 +192,12 @@ class SupportQueueEnvironment(Environment):
         self._refresh_evaluation()
         delta = round(state.progress_score - last_progress, 4)
         raw_reward_delta = delta + sum(partial_signals.values()) + sum(penalties.values())
-        reward_delta = max(0.001, min(round(raw_reward_delta, 4), 0.999))
+        reward_delta = _strict_score(raw_reward_delta)
 
         if state.step_count >= state.max_steps and not state.done:
             state.done = True
             penalties["max_steps"] = penalties.get("max_steps", 0.001) - 0.12
-            reward_delta = max(0.001, round(reward_delta + penalties["max_steps"], 4))
+            reward_delta = _strict_score(reward_delta + penalties["max_steps"])
             status = f"{status} Step budget exhausted."
 
         reward = self._reward_model(
@@ -367,4 +367,4 @@ class SupportQueueEnvironment(Environment):
         task = self._require_task()
         state = self._require_state()
         state.evaluation = compute_progress(task, state)
-        state.progress_score = state.evaluation.final_score
+        state.progress_score = _strict_score(state.evaluation.final_score)

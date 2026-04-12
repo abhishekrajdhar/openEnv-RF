@@ -30,9 +30,9 @@ class ResolutionPayload(OpenEnvModel):
         "escalate_only",
         "request_more_info",
     ]
-    refund_amount: float = 0.0
-    goodwill_credit: float = 0.0
-    shipping_refund: float = 0.0
+    refund_amount: float = Field(default=0.0)
+    goodwill_credit: float = Field(default=0.0)
+    shipping_refund: float = Field(default=0.0)
     message: str = ""
 
 
@@ -69,7 +69,7 @@ class TaskSummary(OpenEnvModel):
 
 class CustomerSupportReward(OpenEnvModel):
     reward_delta: float = Field(gt=0.0, lt=1.0)
-    cumulative_reward: float
+    cumulative_reward: float = Field(gt=0.0, lt=1.0)
     progress_score: float = Field(gt=0.0, lt=1.0)
     partial_signals: Dict[str, float] = Field(default_factory=dict)
     penalties: Dict[str, float] = Field(default_factory=dict)
@@ -99,9 +99,9 @@ class ExpectedOutcome(OpenEnvModel):
     required_artifacts: List[str]
     conflicting_artifacts: List[str] = Field(default_factory=list)
     resolution_code: str
-    refund_amount: float = 0.0
-    goodwill_credit: float = 0.0
-    shipping_refund: float = 0.0
+    refund_amount: float = Field(default=0.0)
+    goodwill_credit: float = Field(default=0.0)
+    shipping_refund: float = Field(default=0.0)
     reply_must_include: List[str] = Field(default_factory=list)
 
 

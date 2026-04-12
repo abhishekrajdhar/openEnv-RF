@@ -52,7 +52,7 @@ def test_task_alias_and_invalid_action_penalty_are_supported():
     observation = client.reset(task_id="01")
     assert observation.task.task_id == "delayed_shipping_refund"
     result = client.step(CustomerSupportAction(action_type="route_ticket", argument="unknown_team"))
-    assert 0.001 < result.reward < 0.999
+    assert 0.001 <= result.reward <= 0.999
     assert result.observation.reward_details.penalties["invalid_action"] < 0.001
 
 
