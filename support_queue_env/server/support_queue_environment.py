@@ -126,7 +126,7 @@ class SupportQueueEnvironment(Environment):
         self._seen_action_signatures = set()
         self._refresh_evaluation()
         reward = self._reward_model(
-            reward_delta=0.0,
+            reward_delta=0.001,
             rationale="Environment reset.",
             partial_signals={"initial_state": self._state.progress_score},
         )
@@ -184,7 +184,7 @@ class SupportQueueEnvironment(Environment):
             raise ValueError(f"Unsupported action type: {action.action_type}")
 
         if not valid_action:
-            penalties["invalid_action"] = penalties.get("invalid_action", 0.0) - 0.08
+            penalties["invalid_action"] = penalties.get("invalid_action", 0.001) - 0.08
             state.hidden_context["invalid_action_count"] = int(
                 state.hidden_context.get("invalid_action_count", 0)
             ) + 1
@@ -192,12 +192,12 @@ class SupportQueueEnvironment(Environment):
         self._refresh_evaluation()
         delta = round(state.progress_score - last_progress, 4)
         raw_reward_delta = delta + sum(partial_signals.values()) + sum(penalties.values())
-        reward_delta = max(0.0, min(round(raw_reward_delta, 4), 1.0))
+        reward_delta = max(0.001, min(round(raw_reward_delta, 4), 0.999))
 
         if state.step_count >= state.max_steps and not state.done:
             state.done = True
-            penalties["max_steps"] = penalties.get("max_steps", 0.0) - 0.12
-            reward_delta = max(0.0, round(reward_delta + penalties["max_steps"], 4))
+            penalties["max_steps"] = penalties.get("max_steps", 0.001) - 0.12
+            reward_delta = max(0.001, round(reward_delta + penalties["max_steps"], 4))
             status = f"{status} Step budget exhausted."
 
         reward = self._reward_model(

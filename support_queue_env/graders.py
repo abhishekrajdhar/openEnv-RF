@@ -18,7 +18,7 @@ def _normalize_text(text: str | None) -> str:
 def _contains_all_terms(text: str | None, terms: list[str]) -> float:
     normalized = _normalize_text(text)
     if not terms:
-        return 1.0
+        return MAX_SCORE
     hits = sum(1 for term in terms if term.lower() in normalized)
     return hits / len(terms)
 
@@ -32,14 +32,14 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     visible_ids = {artifact.artifact_id for artifact in state.visible_artifacts}
     discovered = [artifact_id for artifact_id in expected.required_artifacts if artifact_id in visible_ids]
     discovered_conflicts = [artifact_id for artifact_id in expected.conflicting_artifacts if artifact_id in visible_ids]
-    artifact_coverage = len(discovered) / len(expected.required_artifacts) if expected.required_artifacts else 1.0
+    artifact_coverage = len(discovered) / len(expected.required_artifacts) if expected.required_artifacts else MAX_SCORE
     conflict_coverage = (
         len(discovered_conflicts) / len(expected.conflicting_artifacts)
         if expected.conflicting_artifacts
-        else 1.0
+        else MAX_SCORE
     )
     tag_hits = sum(1 for tag in expected.required_tags if tag in state.tags)
-    tag_coverage = tag_hits / len(expected.required_tags) if expected.required_tags else 1.0
+    tag_coverage = tag_hits / len(expected.required_tags) if expected.required_tags else MAX_SCORE
     reply_coverage = _contains_all_terms(state.draft_reply, expected.reply_must_include)
     invalid_action_penalty = min(float(state.hidden_context.get("invalid_action_count", 0)) * 0.02, 0.10)
     raw_unsupported_claim_penalty = min(float(state.hidden_context.get("unsupported_claim_count", 0)) * 0.03, 0.12)
@@ -48,22 +48,22 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
     hallucination_penalty = _strict_score(raw_hallucination_penalty)
 
     resolution = state.last_resolution
-    resolution_code_score = 1.0 if resolution and resolution.resolution_code == expected.resolution_code else 0.0
-    refund_score = 1.0 if resolution and abs(resolution.refund_amount - expected.refund_amount) < 0.01 else 0.0
-    shipping_score = 1.0 if resolution and abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else 0.0
-    credit_score = 1.0 if resolution and abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else 0.0
+    resolution_code_score = MAX_SCORE if resolution and resolution.resolution_code == expected.resolution_code else MIN_SCORE
+    refund_score = MAX_SCORE if resolution and abs(resolution.refund_amount - expected.refund_amount) < 0.01 else MIN_SCORE
+    shipping_score = MAX_SCORE if resolution and abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else MIN_SCORE
+    credit_score = MAX_SCORE if resolution and abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else MIN_SCORE
 
     task_completion_accuracy = _strict_score(
         0.35 * artifact_coverage
         + 0.15 * conflict_coverage
-        + 0.15 * (1.0 if state.route == expected.route else 0.0)
-        + 0.10 * (1.0 if state.priority == expected.priority else 0.0)
+        + 0.15 * (MAX_SCORE if state.route == expected.route else MIN_SCORE)
+        + 0.10 * (MAX_SCORE if state.priority == expected.priority else MIN_SCORE)
         + 0.10 * tag_coverage
         + 0.15 * resolution_code_score,
     )
     policy_adherence = _strict_score(
-        0.25 * (1.0 if state.route == expected.route else 0.0)
-        + 0.20 * (1.0 if state.priority == expected.priority else 0.0)
+        0.25 * (MAX_SCORE if state.route == expected.route else MIN_SCORE)
+        + 0.20 * (MAX_SCORE if state.priority == expected.priority else MIN_SCORE)
         + 0.20 * tag_coverage
         + 0.20 * conflict_coverage
         + 0.15 * resolution_code_score,
@@ -75,14 +75,14 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         + 0.20 * refund_score
         + 0.10 * shipping_score
         + 0.10 * credit_score
-        + 0.15 * (1.0 if state.route == expected.route else 0.0),
+        + 0.15 * (MAX_SCORE if state.route == expected.route else MIN_SCORE),
     )
 
-    final_score = 0.0
+    final_score = MIN_SCORE
     final_score += 0.15 * artifact_coverage
     final_score += 0.10 * conflict_coverage
-    final_score += 0.12 if state.route == expected.route else 0.0
-    final_score += 0.12 if state.priority == expected.priority else 0.0
+    final_score += 0.12 if state.route == expected.route else MIN_SCORE
+    final_score += 0.12 if state.priority == expected.priority else MIN_SCORE
     final_score += 0.11 * tag_coverage
     final_score += 0.10 * reply_coverage
 
@@ -105,8 +105,8 @@ def compute_progress(task: SupportTask, state: CustomerSupportState) -> Evaluati
         tool_usage_score=tool_usage_score,
         response_quality=response_quality,
         user_satisfaction_proxy=user_satisfaction_proxy,
-        routing_correct=_strict_score(1.0 if state.route == expected.route else 0.0),
-        priority_correct=_strict_score(1.0 if state.priority == expected.priority else 0.0),
+        routing_correct=_strict_score(MAX_SCORE if state.route == expected.route else MIN_SCORE),
+        priority_correct=_strict_score(MAX_SCORE if state.priority == expected.priority else MIN_SCORE),
         hallucination_penalty=hallucination_penalty,
         unsupported_claim_penalty=round(unsupported_claim_penalty, 4),
         final_score=final_score,
@@ -117,13 +117,13 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
     expected = task.expected
     visible_ids = {a.artifact_id for a in state.visible_artifacts}
     components = {
-        "resolution_code": 1.0 if resolution.resolution_code == expected.resolution_code else 0.0,
-        "refund_amount": 1.0 if abs(resolution.refund_amount - expected.refund_amount) < 0.01 else 0.0,
-        "shipping_refund": 1.0 if abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else 0.0,
-        "goodwill_credit": 1.0 if abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else 0.0,
+        "resolution_code": MAX_SCORE if resolution.resolution_code == expected.resolution_code else MIN_SCORE,
+        "refund_amount": MAX_SCORE if abs(resolution.refund_amount - expected.refund_amount) < 0.01 else MIN_SCORE,
+        "shipping_refund": MAX_SCORE if abs(resolution.shipping_refund - expected.shipping_refund) < 0.01 else MIN_SCORE,
+        "goodwill_credit": MAX_SCORE if abs(resolution.goodwill_credit - expected.goodwill_credit) < 0.01 else MIN_SCORE,
         "reply_quality": _contains_all_terms(resolution.message or state.draft_reply, expected.reply_must_include),
-        "route": 1.0 if state.route == expected.route else 0.0,
-        "priority": 1.0 if state.priority == expected.priority else 0.0,
+        "route": MAX_SCORE if state.route == expected.route else MIN_SCORE,
+        "priority": MAX_SCORE if state.priority == expected.priority else MIN_SCORE,
         "tags": sum(1 for tag in expected.required_tags if tag in state.tags) / len(expected.required_tags),
         "artifacts": (
             sum(1 for artifact_id in expected.required_artifacts if artifact_id in visible_ids)
@@ -133,7 +133,7 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
             sum(1 for artifact_id in expected.conflicting_artifacts if artifact_id in visible_ids)
             / len(expected.conflicting_artifacts)
             if expected.conflicting_artifacts
-            else 1.0
+            else MAX_SCORE
         ),
     }
 
