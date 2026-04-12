@@ -27,7 +27,7 @@ def test_easy_task_can_score_full_credit():
     )
     assert result.done is True
     assert result.info["evaluation"]["final_score"] >= 0.99
-    assert 0.001 <= result.reward <= 0.999
+    assert 0.01 <= result.reward <= 0.99
 
 
 def test_wrong_submission_is_partial_not_binary():
@@ -52,8 +52,8 @@ def test_task_alias_and_invalid_action_penalty_are_supported():
     observation = client.reset(task_id="01")
     assert observation.task.task_id == "delayed_shipping_refund"
     result = client.step(CustomerSupportAction(action_type="route_ticket", argument="unknown_team"))
-    assert 0.001 <= result.reward <= 0.999
-    assert result.observation.reward_details.penalties["invalid_action"] == 0.001
+    assert 0.01 <= result.reward <= 0.99
+    assert result.observation.reward_details.penalties["invalid_action"] == 0.01
 
 
 def test_conflicting_evidence_improves_hard_task_progress():
@@ -81,5 +81,5 @@ def test_unsupported_claims_in_resolution_increase_hallucination_penalty():
         )
     )
     assert result.done is True
-    assert result.observation.reward_details.penalties["unsupported_claims"] == 0.001
+    assert result.observation.reward_details.penalties["unsupported_claims"] == 0.01
     assert result.info["evaluation"]["unsupported_claim_penalty"] > 0.001

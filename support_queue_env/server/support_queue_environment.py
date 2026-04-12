@@ -88,7 +88,7 @@ TOOL_DESCRIPTORS = [
 
 
 def _strict_score(value: float) -> float:
-    return round(min(max(value, 0.001), 0.999), 4)
+    return round(min(max(value, 0.01), 0.99), 4)
 
 
 class SupportQueueEnvironment(Environment):
@@ -205,7 +205,7 @@ class SupportQueueEnvironment(Environment):
             rationale=status,
             partial_signals=partial_signals,
             penalties=penalties,
-            grader_score=state.evaluation.final_score if state.done else None,
+            grader_score=state.evaluation.final_score if state.done else 0.01,
         )
         return StepResult(
             observation=self._build_observation(status, reward),
@@ -233,7 +233,7 @@ class SupportQueueEnvironment(Environment):
         rationale: str,
         partial_signals: Dict[str, float] | None = None,
         penalties: Dict[str, float] | None = None,
-        grader_score: float | None = None,
+        grader_score: float = 0.01,
     ) -> CustomerSupportReward:
         state = self._require_state()
         state.cumulative_reward = round(state.cumulative_reward + reward_delta, 4)
@@ -243,7 +243,7 @@ class SupportQueueEnvironment(Environment):
             progress_score=_strict_score(state.progress_score),
             partial_signals={k: _strict_score(v) for k, v in (partial_signals or {}).items()},
             penalties={k: _strict_score(v) for k, v in (penalties or {}).items()},
-            grader_score=grader_score,
+            grader_score=_strict_score(grader_score),
             rationale=rationale,
         )
 

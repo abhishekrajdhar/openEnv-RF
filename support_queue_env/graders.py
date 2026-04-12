@@ -7,8 +7,8 @@ from typing import Dict, Tuple
 from .models import CustomerSupportState, EvaluationSnapshot, ResolutionPayload
 from .tasks import SupportTask
 
-MIN_SCORE = 0.001
-MAX_SCORE = 0.999
+MIN_SCORE = 0.01
+MAX_SCORE = 0.99
 
 
 def _normalize_text(text: str | None) -> str:
