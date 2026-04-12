@@ -149,4 +149,5 @@ def grade_submission(task: SupportTask, resolution: ResolutionPayload, state: Cu
         + 0.08 * components["artifacts"]
         + 0.08 * components["conflicts"]
     )
-    return _strict_score(score), components
+    strict_components = {k: _strict_score(v) for k, v in components.items()}
+    return _strict_score(score), strict_components
