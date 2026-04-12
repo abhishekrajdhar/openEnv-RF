@@ -108,20 +108,20 @@ class ExpectedOutcome(OpenEnvModel):
 class EvaluationSnapshot(OpenEnvModel):
     discovered_required_artifacts: List[str] = Field(default_factory=list)
     discovered_conflicting_artifacts: List[str] = Field(default_factory=list)
-    artifact_coverage: float = 0.0
-    conflict_coverage: float = 0.0
-    tag_coverage: float = 0.0
-    reply_coverage: float = 0.0
-    task_completion_accuracy: float = 0.0
-    policy_adherence: float = 0.0
-    tool_usage_score: float = 0.0
-    response_quality: float = 0.0
-    user_satisfaction_proxy: float = 0.0
+    artifact_coverage: float = 0.001
+    conflict_coverage: float = 0.001
+    tag_coverage: float = 0.001
+    reply_coverage: float = 0.001
+    task_completion_accuracy: float = 0.001
+    policy_adherence: float = 0.001
+    tool_usage_score: float = 0.001
+    response_quality: float = 0.001
+    user_satisfaction_proxy: float = 0.001
     routing_correct: float = 0.001
     priority_correct: float = 0.001
-    hallucination_penalty: float = 0.0
-    unsupported_claim_penalty: float = 0.0
-    final_score: float = 0.0
+    hallucination_penalty: float = 0.001
+    unsupported_claim_penalty: float = 0.001
+    final_score: float = 0.001
 
 
 class CustomerSupportState(State):
@@ -133,8 +133,8 @@ class CustomerSupportState(State):
     route: str | None = None
     draft_reply: str | None = None
     last_resolution: ResolutionPayload | None = None
-    cumulative_reward: float = 0.0
-    progress_score: float = 0.0
+    cumulative_reward: float = 0.001
+    progress_score: float = 0.001
     max_steps: int = 12
     hidden_context: Dict[str, Any] = Field(default_factory=dict)
     evaluation: EvaluationSnapshot = Field(default_factory=EvaluationSnapshot)
