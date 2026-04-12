@@ -241,8 +241,8 @@ class SupportQueueEnvironment(Environment):
             reward_delta=_strict_score(reward_delta),
             cumulative_reward=_strict_score(state.cumulative_reward),
             progress_score=_strict_score(state.progress_score),
-            partial_signals=partial_signals or {},
-            penalties=penalties or {},
+            partial_signals={k: _strict_score(v) for k, v in (partial_signals or {}).items()},
+            penalties={k: _strict_score(v) for k, v in (penalties or {}).items()},
             grader_score=grader_score,
             rationale=rationale,
         )

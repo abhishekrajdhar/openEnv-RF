@@ -41,7 +41,7 @@ class StepResult(OpenEnvModel, Generic[ObservationT]):
     """Fallback step result matching the Gym-style contract."""
 
     observation: ObservationT
-    reward: float = Field(gt=0.0, lt=1.0)
+    reward: float = Field(gt=0.0001, lt=0.9999)
     done: bool
     info: Dict[str, Any] = Field(default_factory=dict)
 

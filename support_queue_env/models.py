@@ -30,9 +30,9 @@ class ResolutionPayload(OpenEnvModel):
         "escalate_only",
         "request_more_info",
     ]
-    refund_amount: float = Field(default=0.0)
-    goodwill_credit: float = Field(default=0.0)
-    shipping_refund: float = Field(default=0.0)
+    refund_amount: float = Field(default=0.001)
+    goodwill_credit: float = Field(default=0.001)
+    shipping_refund: float = Field(default=0.001)
     message: str = ""
 
 
@@ -68,9 +68,9 @@ class TaskSummary(OpenEnvModel):
 
 
 class CustomerSupportReward(OpenEnvModel):
-    reward_delta: float = Field(gt=0.0, lt=1.0)
-    cumulative_reward: float = Field(gt=0.0, lt=1.0)
-    progress_score: float = Field(gt=0.0, lt=1.0)
+    reward_delta: float = Field(gt=0.0001, lt=0.9999)
+    cumulative_reward: float = Field(gt=0.0001, lt=0.9999)
+    progress_score: float = Field(gt=0.0001, lt=0.9999)
     partial_signals: Dict[str, float] = Field(default_factory=dict)
     penalties: Dict[str, float] = Field(default_factory=dict)
     grader_score: float | None = Field(default=None, gt=0.0, lt=1.0)
@@ -99,29 +99,29 @@ class ExpectedOutcome(OpenEnvModel):
     required_artifacts: List[str]
     conflicting_artifacts: List[str] = Field(default_factory=list)
     resolution_code: str
-    refund_amount: float = Field(default=0.0)
-    goodwill_credit: float = Field(default=0.0)
-    shipping_refund: float = Field(default=0.0)
+    refund_amount: float = Field(default=0.001)
+    goodwill_credit: float = Field(default=0.001)
+    shipping_refund: float = Field(default=0.001)
     reply_must_include: List[str] = Field(default_factory=list)
 
 
 class EvaluationSnapshot(OpenEnvModel):
     discovered_required_artifacts: List[str] = Field(default_factory=list)
     discovered_conflicting_artifacts: List[str] = Field(default_factory=list)
-    artifact_coverage: float = Field(default=0.001, gt=0.0, lt=1.0)
-    conflict_coverage: float = Field(default=0.001, gt=0.0, lt=1.0)
-    tag_coverage: float = Field(default=0.001, gt=0.0, lt=1.0)
-    reply_coverage: float = Field(default=0.001, gt=0.0, lt=1.0)
-    task_completion_accuracy: float = Field(default=0.001, gt=0.0, lt=1.0)
-    policy_adherence: float = Field(default=0.001, gt=0.0, lt=1.0)
-    tool_usage_score: float = Field(default=0.001, gt=0.0, lt=1.0)
-    response_quality: float = Field(default=0.001, gt=0.0, lt=1.0)
-    user_satisfaction_proxy: float = Field(default=0.001, gt=0.0, lt=1.0)
-    routing_correct: float = Field(default=0.001, gt=0.0, lt=1.0)
-    priority_correct: float = Field(default=0.001, gt=0.0, lt=1.0)
-    hallucination_penalty: float = Field(default=0.001, gt=0.0, lt=1.0)
-    unsupported_claim_penalty: float = Field(default=0.001, gt=0.0, lt=1.0)
-    final_score: float = Field(default=0.001, gt=0.0, lt=1.0)
+    artifact_coverage: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    conflict_coverage: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    tag_coverage: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    reply_coverage: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    task_completion_accuracy: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    policy_adherence: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    tool_usage_score: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    response_quality: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    user_satisfaction_proxy: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    routing_correct: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    priority_correct: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    hallucination_penalty: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    unsupported_claim_penalty: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    final_score: float = Field(default=0.001, gt=0.0001, lt=0.9999)
 
 
 class CustomerSupportState(State):
@@ -133,8 +133,8 @@ class CustomerSupportState(State):
     route: str | None = None
     draft_reply: str | None = None
     last_resolution: ResolutionPayload | None = None
-    cumulative_reward: float = Field(default=0.001, gt=0.0, lt=1.0)
-    progress_score: float = Field(default=0.001, gt=0.0, lt=1.0)
+    cumulative_reward: float = Field(default=0.001, gt=0.0001, lt=0.9999)
+    progress_score: float = Field(default=0.001, gt=0.0001, lt=0.9999)
     max_steps: int = 12
     hidden_context: Dict[str, Any] = Field(default_factory=dict)
     evaluation: EvaluationSnapshot = Field(default_factory=EvaluationSnapshot)
