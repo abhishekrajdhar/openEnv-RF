@@ -68,12 +68,12 @@ class TaskSummary(OpenEnvModel):
 
 
 class CustomerSupportReward(OpenEnvModel):
-    reward_delta: float = Field(ge=0.0, le=1.0)
+    reward_delta: float = Field(gt=0.0, lt=1.0)
     cumulative_reward: float
-    progress_score: float = Field(ge=0.0, le=1.0)
+    progress_score: float = Field(gt=0.0, lt=1.0)
     partial_signals: Dict[str, float] = Field(default_factory=dict)
     penalties: Dict[str, float] = Field(default_factory=dict)
-    grader_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    grader_score: float | None = Field(default=None, gt=0.0, lt=1.0)
     rationale: str
 
 
